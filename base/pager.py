@@ -148,6 +148,8 @@ class PageDataDB (PageDataBase):
 
     def load(self, cur, pagesize, isdict=False):
         '''加载数据'''
+        if self.data:
+            return self.data
         if self.maxid >= 0:
             sql = self.query_sql % (pagesize)
         else:
@@ -173,8 +175,10 @@ class PageDataDB (PageDataBase):
 
 
 def db_pager(db, sql, pagecur, pagesize, count_sql=None, maxid=-1):
+    log.debug('sql:%s pagecur:%d pagesize:%d', sql, pagecur, pagesize)
     pgdata = PageDataDB(db, sql, count_sql, maxid)
     p = Pager(pgdata, pagecur, pagesize)
+    p.split()
     return p
 
 

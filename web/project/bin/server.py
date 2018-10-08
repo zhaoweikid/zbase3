@@ -3,7 +3,7 @@
 import os
 import sys
 HOME = os.path.dirname(os.path.abspath(__file__))
-#sys.path.append(os.path.join(os.path.dirname(HOME), 'conf'))
+sys.path.append(os.path.join(os.path.dirname(HOME), 'conf'))
 
 from zbase3.base import logger,loader
 if __name__ == '__main__':
@@ -28,7 +28,7 @@ from zbase3.web import runner
 #dbpool.install(config.DATABASE)
 
 # 导入WEB URLS
-config.URLS = urls.urls
+config.URLS = urls
 
 app = core.WebApplication(config)
 

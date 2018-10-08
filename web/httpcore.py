@@ -9,7 +9,8 @@ import types
 import datetime
 from http import cookies
 import traceback
-from io import StringIO
+#from io import StringIO
+import io
 
 log = logging.getLogger()
 
@@ -59,6 +60,30 @@ HTTP_STATUS_CODES = {
  505: 'HTTP Version Not Supported',
 }
 
+# fixbug on cgi.py
+class MyFieldStorage (cgi.FieldStorage):
+    def read_binary(self):
+        """Internal: read binary data."""
+        self.file = self.make_file()
+        todo = self.length
+        if todo >= 0:
+            while todo > 0: 
+                data = self.fp.read(min(todo, self.bufsize)) # bytes
+                if not isinstance(data, bytes):
+                    raise ValueError("%s should return bytes, got %s"
+                                     % (self.fp, type(data).__name__))
+                self.bytes_read += len(data)
+                if not data:
+                    self.done = -1 
+                    break
+                if self._binary_file:
+                    self.file.write(data)
+                else:
+                    self.file.write(data.decode('utf-8'))
+                todo = todo - len(data)
+
+
+
 class Request(object):
     _input = None
     _files = None
@@ -83,12 +108,14 @@ class Request(object):
         if self.length:
             self.data = environ['wsgi.input'].read(self.length)
         else:
-            self.data = ''
+            self.data = b''
 
         self._parse_cookie()
 
         if self.method != 'OPTIONS':
-            self.storage = cgi.FieldStorage(fp=StringIO(self.data), environ=safe_environ, keep_blank_values=True)
+            log.debug('req data:%s %s', self.data, type(self.data))
+            #self.storage = cgi.FieldStorage(fp=StringIO(self.data.decode('utf-8')), environ=safe_environ, keep_blank_values=True)
+            self.storage = MyFieldStorage(fp=io.BytesIO(self.data), environ=safe_environ, keep_blank_values=True)
         else:
             self.storage = None
 

@@ -245,7 +245,7 @@ class DBConnection:
         return sp.join(x)
 
     def dict2insert(self, d):
-        keys = d.keys()
+        keys = list(d.keys())
         keys.sort()
         vals = []
         for k in keys:
@@ -257,7 +257,7 @@ class DBConnection:
         if not where:
             where = {}
         for f in fields:
-            if f.value == None or (f.value == '' and f.isnull == False):
+            if f.value == None or (f.value == '' and f.must):
                 continue
             where[f.name] = (f.op, f.value)
         return where
@@ -558,7 +558,8 @@ class MySQLConnection (DBConnection):
         #if type(s) == types.UnicodeType:
         #    s = s.encode(enc)
         ns = self.conn.escape_string(s)
-        return unicode(ns, enc)
+        #return unicode(ns, enc)
+        return ns
 
     def last_insert_id(self):
         ret = self.query('select last_insert_id()', isdict=False)

@@ -5,7 +5,7 @@ from zbase3.web import template, reloader
 from zbase3.base import dbpool
 from zbase3.web.httpcore import Request, Response, NotFound
 import traceback, logging
-from httpcore import MethodNotAllowed
+from zbase3.web.httpcore import MethodNotAllowed
 
 log = logging.getLogger()
 
@@ -124,7 +124,8 @@ class WebApplication(object):
 
     def add_urls(self, urls, appname=''):
         tmpurls = []
-        for item in urls:
+        for item in urls.urls:
+            #log.debug('initial url:%s', item[0])
             if len(item) == 2:
                 if type(item[1]) == str:
                     mod, cls = item[1].rsplit('.', 1)
@@ -153,15 +154,19 @@ class WebApplication(object):
         if tplcf['tmp'] and not os.path.isdir(tplcf['tmp']):
             os.mkdir(tplcf['tmp'])
         if tplcf['path']:
+            log.info('initial template')
             template.install(tplcf['path'], tplcf['tmp'], tplcf['cache'],
                              self.settings.CHARSET)
 
         if self.settings.DATABASE:
+            log.info('initial database')
             dbpool.install(self.settings.DATABASE)
 
         self.urls = []
         for appname in self.settings.APPS:
             self.add_app(appname)
+
+        log.info('initial url map')
         self.add_urls(self.settings.URLS)
 
     def run(self, host='0.0.0.0', port=8000):
@@ -212,6 +217,7 @@ class WebApplication(object):
                             kwargs.update(mkwargs)
                         else:
                             args = match.groups()
+                        log.debug('url match:%s %s', args, kwargs)
 
                         times.append(time.time())
 

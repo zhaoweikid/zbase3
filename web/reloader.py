@@ -3,6 +3,7 @@
 
 import os, sys
 import traceback
+from imp import reload
 import logging
 
 log = logging.getLogger()

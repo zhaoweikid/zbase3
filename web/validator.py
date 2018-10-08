@@ -33,10 +33,10 @@ opmap = {'eq':'=',
          }
 
 class Field:
-    def __init__(self, name, valtype=4, isnull=True, default = '', **options):
+    def __init__(self, name, valtype=4, must=False, default = '', **options):
         self.name   = name
         self.type   = valtype # 值类型, 默认为字符串
-        self.isnull = isnull # 是否可以为空
+        self.must = must # 是否必须有值不能为空
         self.op     = '='
         self.default= default
 
@@ -61,8 +61,8 @@ class Field:
         match = ''
         if self.match:
             match = self.match.pattern
-        return 'name:%s type:%d match:%s isnull:%d op:%s default:%s' % \
-                (self.name, self.type, match, self.isnull, self.op, self.default)
+        return 'name:%s type:%d match:%s must:%d op:%s default:%s' % \
+                (self.name, self.type, match, self.must, self.op, self.default)
 
 F = Field
 
@@ -72,7 +72,7 @@ class ValidatorError (Exception):
 
 class Validator:
     def __init__(self, fields=None):
-        # fields must have isnull,type,match,name
+        # fields must have must,type,match,name
         self._fields = []
         for f in fields:
             if isinstance(f, str):
@@ -126,7 +126,7 @@ class Validator:
             try:
                 val = _input.get(f.name)
                 if not val: # field defined not exist
-                    if not f.isnull: # null is not allowed, error
+                    if f.must: # null is not allowed, error
                         result.append(f.name)
                     else:
                         f.value = f.default
@@ -186,11 +186,17 @@ def with_validator_self(func):
     def _(self, *args, **kwargs):
         vdt = Validator(getattr(self, '%s_fields'% func.__name__))
         self.validator = vdt
-        ret = vdt.verify(self.req.input())
+        if hasattr(self, 'input'):
+            ret = vdt.verify(self.input())
+        else:
+            ret = vdt.verify(self.req.input())
         log.debug('validator check:%s', ret)
         if ret:
             #log.debug('err:%s', errfunc(ret))
-            errfunc = getattr(self, '%s_error'% func.__name__, None)
+            errfunc = getattr(self, 'error')
+            if not errfunc: 
+                errfunc = getattr(self, '%s_error'% func.__name__, None)
+
             if errfunc:
                 return errfunc(ret)
             else:
@@ -273,8 +279,8 @@ def test3():
     log = logger.install('stdout')
  
     fields = [
-        Field('age', T_INT, isnull = True, default = 18),
-        Field('name', T_STR, isnull = False),
+        Field('age', T_INT, must=False, default = 18),
+        Field('name', T_STR, must=True),
         Field('money', T_INT),
     ]
     input = {'name': 'aaaa', 'money': '12'}
@@ -283,8 +289,8 @@ def test3():
     #print(ret)
     #print(v.data)
     fields = [
-        Field('age', T_INT, isnull = True, default = 18),
-        Field('name', T_STR, isnull = False),
+        Field('age', T_INT, must=False, default = 18),
+        Field('name', T_STR, must=True),
         Field('money', T_INT),
         Field('title', T_REG, match = '.{3,20}'),
     ]
