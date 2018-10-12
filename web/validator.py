@@ -163,17 +163,22 @@ class Validator:
         return sep.join(ret)
 
 
-def with_validator(fields, errfunc=None):
+def with_validator(fields):
     def f(func):
         def _(self, *args, **kwargs):
             vdt = Validator(fields)
             self.validator = vdt
-            ret = vdt.verify(self.req.input())
+            
+            if hasattr(self, 'input'):
+                ret = vdt.verify(self.input())
+            else:
+                ret = vdt.verify(self.req.input())
+     
             log.debug('validator check:%s', ret)
             if ret:
-                #log.debug('err:%s', errfunc(ret))
+                errfunc = getattr(self, 'error', None)
                 if errfunc:
-                    return errfunc(self, ret)
+                    return errfunc(ret)
                 else:
                     self.resp.status = 400
                     return 'input error'
@@ -196,7 +201,6 @@ def with_validator_self(func):
             errfunc = getattr(self, 'error')
             if not errfunc: 
                 errfunc = getattr(self, '%s_error'% func.__name__, None)
-
             if errfunc:
                 return errfunc(ret)
             else:

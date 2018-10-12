@@ -8,6 +8,18 @@ import uuid, json, base64
 
 log = logging.getLogger()
 
+
+def json_default_trans(obj):
+	'''json对处理不了的格式的处理方法'''
+	if isinstance(obj, datetime.datetime):
+		return obj.strftime('%Y-%m-%d %H:%M:%S')
+	if isinstance(obj, datetime.date):
+		return obj.strftime('%Y-%m-%d')
+	raise TypeError('%r is not JSON serializable' % obj)
+
+
+
+
 class SessionError (Exception):
     pass
 
@@ -37,9 +49,10 @@ try:
     import redis
     class SessionRedis (Session):
         def __init__(self, server=None, sid=None, expire=3600):
-            addr = server['addr']
+            addr = server[0]['addr']
+            timeout = server[0]['timeout']
             self.conn = redis.Redis(host=addr[0], port=addr[1], 
-                    socket_timeout=server['timeout'], db=0)
+                    socket_timeout=timeout, db=0)
             self.session_expire = expire
             Session.__init__(self, sid)
 
@@ -47,12 +60,12 @@ try:
             v = self.conn.get(self.sid) 
             if not v:
                 raise SessionError('sid %s not have value' % self.sid)
-            self.data.update(json.loads(v))
+            self.data.update(json.loads(v.decode('utf-8')))
 
         def save(self):
             if not self.data:
                 return
-            v = json.dumps(self.data, separators=(',', ':'))
+            v = json.dumps(self.data, separators=(',', ':'), default=json_default_trans)
             self.conn.set(self.sid, v, self.session_expire)
 
         def remove(self):
@@ -79,7 +92,7 @@ class SessionFile (Session):
     def save(self):
         if not self.data:
             return
-        v = json.dumps(self.data, separators=(',', ':'))
+        v = json.dumps(self.data, separators=(',', ':'), default=json_default_trans)
         filepath = os.path.dirname(self.filename)
         if not os.path.isdir(filepath):
             os.makedirs(filepath)
