@@ -113,7 +113,7 @@ class Request(object):
         self._parse_cookie()
 
         if self.method != 'OPTIONS':
-            log.debug('req data:%s %s', self.data, type(self.data))
+            #log.debug('req data:%s %s', self.data, type(self.data))
             #self.storage = cgi.FieldStorage(fp=StringIO(self.data.decode('utf-8')), environ=safe_environ, keep_blank_values=True)
             self.storage = MyFieldStorage(fp=io.BytesIO(self.data), environ=safe_environ, keep_blank_values=True)
         else:
@@ -136,8 +136,8 @@ class Request(object):
             nv = pair.split('=', 1)
             if len(nv) != 2:
                 nv.append('')
-            key = urllib.unquote_plus(nv[0])
-            value = urllib.unquote_plus(nv[1])
+            key = urllib.parse.unquote_plus(nv[0])
+            value = urllib.parse.unquote_plus(nv[1])
             r[key] = value
         return r
 
@@ -204,7 +204,10 @@ class Request(object):
 
 class Response(object):
     def __init__(self, content='', status=200, mimetype='text/html', charset='utf-8'):
-        self.content = content.encode('utf-8')
+        if type(content) == bytes:
+            self.content = content
+        else:
+            self.content = content.encode('utf-8')
         self.status  = status
         self.mimetype= mimetype
         self.headers = {'X-Powered-By':'QF/'+version}
