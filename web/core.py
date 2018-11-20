@@ -81,6 +81,7 @@ class Handler(object):
             self.write(template.render(*args, **kwargs))
 
 
+
 class WebApplication(object):
     def __init__(self, settings):
         '''

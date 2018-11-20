@@ -23,20 +23,28 @@ class CacheDict (UserDict):
             self._cache_info[key] = {'last':now}
             self.data[key] = data
         return data
- 
 
-def test5():
-    
+    def refresh(self, key):
+        data = self._update_func(key, self.data.get(key))
+        now = time.time()
+        self._cache_info[key] = {'last':now}
+        self.data[key] = data
+        return data
+
+def test():
     def func(key, data):
         return 'name-%.3f' % time.time()
 
     c = CacheDict(func, 0.5)
-    for i in range(0, 10):
+    for i in range(0, 3):
         print(c['name'])
         time.sleep(.2)
 
+    print("refresh:", c.refresh('name'))
+    print(c['name'])
+
 if __name__ == '__main__':
-    test5()
+    test()
 
 
 
