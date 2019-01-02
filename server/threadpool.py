@@ -35,7 +35,7 @@ class ThreadPool:
         for i in range(0, self.count):
             t = threading.Thread(target=self._run)
             self.threads.append(t)
-            t.setDaemon(True)
+            #t.setDaemon(True)
 
         self.isrunning = True
         for th in self.threads:
@@ -43,38 +43,30 @@ class ThreadPool:
 
     def stop(self):
         self.isrunning = False
-        return
+        log.info('wait stop threadpool ...')
+        while self.queue.qsize() > 0:
+            time.sleep(1)
 
-        # 等待其他线程退出
-        #while True:
-        #    #self.mutex.acquire()
-        #    #tr = self.thread_running
-        #    #self.mutex.release()
-        #    #if tr == 0:
-
-        #    log.debug('threads:%d', self.thread_running)
-        #    if self.thread_running == 0:
-        #        break
-        #    time.sleep(1)
+        for t in self.threads:
+            t.join()
+        log.info('threadpool stopped')
 
     def _run(self):
         while True:
-            task = None
-            while True:
+            try:
+                task = self.queue.get(timeout=1)
+                #task = self.queue.get()
+                if not task:
+                    log.error('get task none')
+                    return
+                self.do_task(task)
+            except queue.Empty:
                 if not self.isrunning:
                     log.info('stop!')
                     return
-                try:
-                    task = self.queue.get(timeout=1)
-                    #task = self.queue.get()
-                    if not task:
-                        log.error('get task none')
-                        return
-                except Exception as e:
-                    #log.info('get timeout, self.queue.get:',  str(e))
-                    continue
-                break
-            self.do_task(task)
+            except Exception as e:
+                #log.info('get timeout, self.queue.get:',  str(e))
+                continue
 
 
     def do_task(self, task):

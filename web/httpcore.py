@@ -309,7 +309,7 @@ class ChunkedResponse(Response):
 def NotFound(s=None):
     if not s:
         return Response(HTTP_STATUS_CODES[404], 404)
-    return Response(s, 404)
+    return Response('404 ' + s, 404)
 
 def EmptyGif():
     resp = Response(HTTP_STATUS_CODES[200], 200, 'image/gif')
@@ -317,7 +317,7 @@ def EmptyGif():
     return resp
 
 def MethodNotAllowed():
-    return Response(HTTP_STATUS_CODES[405], 405)
+    return Response('405 ' + HTTP_STATUS_CODES[405], 405)
 
 def redirect(url, status=302):
     resp = Response('redirect to:%s' % url, status, mimetype='text/html')

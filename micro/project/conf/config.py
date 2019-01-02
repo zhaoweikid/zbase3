@@ -12,8 +12,10 @@ HOST = '0.0.0.0'
 PORT = 7200
 
 # 服务开启进程数
-PROCS = 3
+PROCS = 2
 
+# 单进程最大并发
+MAX_CONN = 1000
 
 # 调试模式: True/False
 # 生产环境必须为False
@@ -30,7 +32,7 @@ DATABASE = {
         'db': 'test',
         'host': '127.0.0.1',
         'port': 3306,
-        'user': 'root',
+        'user': 'zhaowei',
         'passwd': '123456',
         'charset': 'utf8',
         'conn': 10,

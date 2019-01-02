@@ -24,6 +24,8 @@ from zbase3.base import dbpool
 from zbase3.web import core
 from zbase3.web import runner
 
+import datetime
+config.starttime = str(datetime.datetime.now())[:19]
 # 导入数据库
 #dbpool.install(config.DATABASE)
 
