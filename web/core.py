@@ -218,7 +218,7 @@ class WebApplication(object):
                             kwargs.update(mkwargs)
                         else:
                             args = match.groups()
-                        log.debug('url match:%s %s', args, kwargs)
+                        #log.debug('url match:%s %s', args, kwargs)
 
                         times.append(time.time())
 
@@ -270,7 +270,7 @@ class WebApplication(object):
         try:
             if req.query_string:
                 s.append(req.query_string[:2048])
-            if req.method == 'POST':
+            if req.method in ('POST', 'PUT'):
                 s.append(str(req.input())[:2048])
             if not req.input() and req.data:
                 s.append(str(req.data)[:2048])
@@ -278,9 +278,9 @@ class WebApplication(object):
             if resp.content and resp.content[0] == 123 and resp.content[-1] == 125:  # json, start { end }
                 s.append(str(resp.content)[:4096])
         except:
-            log.warn(traceback.format_exc())
+            log.error(traceback.format_exc())
         if not req.path.startswith(tuple(self.settings.STATICS.keys())):
-            log.info('|'.join(s))
+            log.warn('|'.join(s))
 
         return resp(environ, start_response)
 

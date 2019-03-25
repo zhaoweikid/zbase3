@@ -173,7 +173,9 @@ def with_validator(fields):
                 ret = vdt.verify(self.input())
             else:
                 ret = vdt.verify(self.req.input())
-     
+            
+            self.data = self.validator.data
+            
             log.debug('validator check:%s', ret)
             if ret:
                 errfunc = getattr(self, 'error', None)
@@ -195,6 +197,7 @@ def with_validator_self(func):
             ret = vdt.verify(self.input())
         else:
             ret = vdt.verify(self.req.input())
+        self.data = self.validator.data
         log.debug('validator check:%s', ret)
         if ret:
             #log.debug('err:%s', errfunc(ret))

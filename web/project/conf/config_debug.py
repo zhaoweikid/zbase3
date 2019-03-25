@@ -2,7 +2,7 @@
 
 import os
 import sys
-from webconfig import *
+from webconfig_debug import *
 
 # 服务地址
 HOST = '0.0.0.0'

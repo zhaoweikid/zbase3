@@ -2,6 +2,6 @@
 
 urls = (
     ('^/ping$', "ping.Ping"),
-    ('^/index', "index.Index"),
+    ('^/index$', "index.Index"),
     ('^/upload$', "file.UploadFile"),
 )

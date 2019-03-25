@@ -3,6 +3,7 @@ import time, datetime, os
 import types, random
 import threading
 import logging
+import copy
 import traceback
 from zbase3.base import pager
 from contextlib import contextmanager
@@ -10,6 +11,7 @@ log = logging.getLogger()
 
 dbpool = None
 
+_trans_func = {}
 
 def timeit(func):
     def _(*args, **kwargs):
@@ -35,14 +37,14 @@ def timeit(func):
             conn = args[0]
             #dbcf = conn.pool.dbcf
             dbcf = conn.param
-            log.info('server=%s|id=%d|name=%s|user=%s|addr=%s:%d|db=%s|idle=%d|busy=%d|max=%d|trans=%d|time=%d|ret=%s|num=%d|sql=%s|err=%s',
+            log.info('server=%s|id=%d|name=%s|user=%s|r=%s|addr=%s:%d|db=%s|c=%d,%d,%d|tr=%d|time=%d|ret=%s|n=%d|sql=%s|err=%s',
                      conn.type, conn.conn_id%10000,
-                     conn.name, dbcf.get('user',''),
+                     conn.name, dbcf.get('user',''), conn.role,
                      dbcf.get('host',''), dbcf.get('port',0),
-                     dbcf.get('db',''), 
+                     dbcf.get('db',''),
                      len(conn.pool.dbconn_idle),
                      len(conn.pool.dbconn_using),
-                     conn.pool.max_conn, conn.trans, 
+                     conn.pool.max_conn, conn.trans,
                      int((endtm-starttm)*1000000),
                      str(ret), num,
                      repr(args[1]), err)
@@ -87,7 +89,7 @@ class DBFunc:
 
 class DBConnection:
     def __init__(self, param, lasttime, status):
-        self.name       = param.get('name') 
+        self.name       = param.get('name')
         self.param      = param
         self.conn       = None
         self.status     = status
@@ -131,8 +133,6 @@ class DBConnection:
         #log.info('exec:%s', sql)
         cur = self.conn.cursor()
         if param:
-            if not isinstance(param, (dict, tuple)):
-                param = tuple([param])
             ret = cur.execute(sql, param)
         else:
             ret = cur.execute(sql)
@@ -140,14 +140,9 @@ class DBConnection:
         return ret
 
     @timeit
-    def executemany(self, sql, param):
+    def executemany(self, sql, param=None):
         cur = self.conn.cursor()
-        if param:
-            if not isinstance(param, (dict, tuple)):
-                param = tuple([param])
-            ret = cur.executemany(sql, param)
-        else:
-            ret = cur.executemany(sql)
+        ret = cur.executemany(sql, param)
         cur.close()
         return ret
 
@@ -156,21 +151,25 @@ class DBConnection:
         '''sql查询，返回查询结果'''
         #log.info('query:%s', sql)
         cur = self.conn.cursor()
-        if not param:
-            cur.execute(sql)
-        else:
-            if not isinstance(param, (dict, tuple)):
-                param = tuple([param])
+        if param:
             cur.execute(sql, param)
+        else:
+            cur.execute(sql)
         res = cur.fetchall()
         cur.close()
         res = [self.format_timestamp(r, cur) for r in res]
         #log.info('desc:', cur.description)
+        global _trans_func
         if res and isdict:
             ret = []
             xkeys = [ i[0] for i in cur.description]
             for item in res:
-                ret.append(dict(zip(xkeys, item)))
+                one = dict(zip(xkeys, item))
+                if _trans_func:
+                    for k in xkeys:
+                        if k in _trans_func:
+                            one[k] = _trans_func[k](k, one[k])
+                ret.append(one)
         else:
             ret = res
             if head:
@@ -182,26 +181,24 @@ class DBConnection:
     def get(self, sql, param=None, isdict=True):
         '''sql查询，只返回一条'''
         cur = self.conn.cursor()
-        if not param:
-            cur.execute(sql)
-        else:
-            if not isinstance(param, (dict, tuple)):
-                param = tuple([param])
-            cur.execute(sql, param)
+        cur.execute(sql, param)
         res = cur.fetchone()
         cur.close()
         res = self.format_timestamp(res, cur)
+        global _trans_func
         if res and isdict:
             xkeys = [ i[0] for i in cur.description]
-            return dict(zip(xkeys, res))
+            one = dict(zip(xkeys, res))
+            
+            if _trans_func:
+                for k in xkeys:
+                    if k in _trans_func:
+                        one[k] = _trans_func[k](k, one[k])
+            return one
         else:
             return res
 
     def value2sql(self, v, charset='utf-8'):
-        #tv = type(v)
-        #if tv in [types.StringType, types.UnicodeType]:
-            #if tv == types.UnicodeType:
-            #    v = v.encode(charset)
         if isinstance(v, str):
             if v.startswith(('now()','md5(')):
                 return v
@@ -210,11 +207,12 @@ class DBConnection:
             return "'%s'" % str(v)
         elif isinstance(v, DBFunc):
             return v.value
+        elif isinstance(v, bytes):
+            return v.decode(charset)
         else:
             if v is None:
                 return 'NULL'
-            #return str(v)
-            return v
+            return str(v)
 
     def exp2sql(self, key, op, value):
         item = '(`%s` %s ' % (key.strip('`').replace('.','`.`'), op)
@@ -418,7 +416,7 @@ def with_mysql_reconnect(func):
                 x = func(self, *args, **argitems)
             except m.OperationalError as e:
                 log.warning(traceback.format_exc())
-                if e[0] >= 2000 and self.trans == 0: # 客户端错误
+                if e.args[0] >= 2000 and self.trans == 0: # 客户端错误
                     close_mysql_conn(self)
                     self.connect()
                     trycount -= 1
@@ -437,33 +435,6 @@ def with_mysql_reconnect(func):
             else:
                 return x
     return _
-
-
-
-#def with_mysql_reconnect(func):
-#    def _(self, *args, **argitems):
-#        import MySQLdb
-#        trycount = 3
-#        while True:
-#            try:
-#                x = func(self, *args, **argitems)
-#            except MySQLdb.OperationalError, e:
-#                #log.err('mysql error:', e)
-#                if e[0] >= 2000: # client error
-#                    #log.err('reconnect ...')
-#                    self.conn.close()
-#                    self.connect()
-#
-#                    trycount -= 1
-#                    if trycount > 0:
-#                        continue
-#                raise
-#            else:
-#                return x
-#
-#    return _
-
-
 
 
 class MySQLConnection (DBConnection):
@@ -519,12 +490,12 @@ class MySQLConnection (DBConnection):
             #    cur.close()
         else:
             raise ValueError('engine error:' + engine)
-        log.info('server=%s|func=connect|id=%d|name=%s|user=%s|role=%s|addr=%s:%d|db=%s', 
+        log.info('server=%s|func=connect|id=%d|name=%s|user=%s|role=%s|addr=%s:%d|db=%s',
                     self.type, self.conn_id%10000,
-                    self.name, self.param.get('user',''), self.role, 
+                    self.name, self.param.get('user',''), self.role,
                     self.param.get('host',''), self.param.get('port',0),
                     self.param.get('db',''))
- 
+
     def close(self):
         log.info('server=%s|func=close|id=%d', self.type, self.conn_id%10000)
         self.conn.close()
@@ -614,12 +585,12 @@ class PyMySQLConnection (MySQLConnection):
 
         else:
             raise ValueError('engine error:' + engine)
-        log.info('server=%s|func=connect|id=%d|name=%s|user=%s|role=%s|addr=%s:%d|db=%s', 
+        log.info('server=%s|func=connect|id=%d|name=%s|user=%s|role=%s|addr=%s:%d|db=%s',
                     self.type, self.conn_id%10000,
                     self.name, self.param.get('user',''), self.role,
                     self.param.get('host',''), self.param.get('port',0),
                     self.param.get('db',''))
- 
+
 class SQLiteConnection (DBConnection):
     type = "sqlite"
     def __init__(self, param, lasttime, status):
@@ -874,7 +845,9 @@ class RWDBPool:
     def size(self):
         ret = {'master': (-1,-1), 'slave':[]}
         if self.master:
-            ret['master'] = self.master.size()
+            x = self.master
+            key = '%s@%s:%d' % (x.dbcf['user'], x.dbcf['host'], x.dbcf['port'])
+            ret['master'] = (key, self.master.size())
         for x in self.slaves:
             key = '%s@%s:%d' % (x.dbcf['user'], x.dbcf['host'], x.dbcf['port'])
             ret['slave'].append((key, x.size()))
@@ -938,8 +911,35 @@ def executemany(db, sql, param):
 def query(db, sql, param=None, isdict=True, head=False):
     return db.query(sql, param, isdict, head)
 
+
+def add_trans(key, func):
+    global _trans_func
+    if isinstance(key, list):
+        for k in key:
+            _trans_func[k] = func
+    else:
+        _trans_func[key] = func
+
+
+
+# 推荐使用的获取数据库连接的方法
 @contextmanager
 def get_connection(token):
+    conn = None
+    try:
+        conn = acquire(token)
+        yield conn
+    except:
+        log.error("error=%s", traceback.format_exc())
+        raise
+    finally:
+        if conn:
+            release(conn)
+
+get_connection_exception = get_connection
+
+@contextmanager
+def get_connection_noexcept(token):
     conn = None
     try:
         conn = acquire(token)
@@ -950,37 +950,12 @@ def get_connection(token):
         if conn:
             release(conn)
 
-@contextmanager
-def get_connection_exception(token):
-    '''出现异常捕获后，关闭连接并抛出异常'''
-    conn = None
-    try:
-        conn = acquire(token)
-        yield conn
-    except:
-        #log.error("error=%s", traceback.format_exc())
-        raise
-    finally:
-        if conn:
-            release(conn)
 
-
+# 只能用在类方法上面，并且并不推荐使用此方法，使用get_connection更好
 def with_database(name, errfunc=None, errstr=''):
     def f(func):
         def _(self, *args, **argitems):
-            is_none, is_inst = False, False
-            #if isinstance(self, types.NoneType):
-            if self is None:
-                is_none = True
-            #elif isinstance(self, types.ObjectType):
-            elif isinstance(self, object):
-                is_inst = True
-
-            if is_inst:
-                self.db = acquire(name)
-            elif is_none:
-                self = acquire(name)
-
+            self.db = acquire(name)
             x = None
             try:
                 x = func(self, *args, **argitems)
@@ -990,48 +965,35 @@ def with_database(name, errfunc=None, errstr=''):
                 else:
                     raise
             finally:
-                if is_inst:
-                    release(self.db)
-                    self.db = None
-                elif is_none:
-                    release(self)
-                    self = None
+                release(self.db)
             return x
         return _
     return f
 
-def test():
-    import random, logger
-    logger.install('stdout')
-    #log.install("SimpleLogger")
+def test_sqlite():
+    import random
     dbcf = {'test1': {'engine': 'sqlite', 'db':'test1.db', 'conn':1}}
     #dbcf = {'test1': {'engine': 'sqlite', 'db':':memory:', 'conn':1}}
+    if os.path.isfile('test1.db'):
+        os.remove('test1.db')
     install(dbcf)
 
-    sql = "create table if not exists user(id integer primary key, name varchar(32), ctime timestamp)"
-    log.debug('acquire')
-    x = acquire('test1')
-    log.debug('acquire ok')
-    x.execute(sql)
+    with get_connection('test1') as conn:
+        sql = "create table if not exists user(id integer primary key, name varchar(32), ctime timestamp)"
+        conn.execute(sql)
 
-    #sql1 = "insert into user values (%d, 'zhaowei', datetime())" % (random.randint(1, 100));
-    sql1 = "insert into user values (%d, 'zhaowei', datetime())" % (random.randint(1, 100));
-    x.execute(sql1)
+        sql1 = "insert into user values (%d, 'zhaowei', datetime())" % (random.randint(1, 100));
+        conn.execute(sql1)
 
-    x.insert("user", {"name":"bobo","ctime":DBFunc("datetime()")})
+        conn.insert("user", {"name":"bobo","ctime":DBFunc("datetime()")})
 
-    sql2 = "select * from user"
-    ret = x.query(sql2)
-    log.debug('result:%s', ret)
+        sql2 = "select * from user"
+        ret = conn.query(sql2)
+        log.debug('result:%s', ret)
 
-    ret = x.query('select * from user where name=?', 'bobo')
-    log.debug('result:%s', ret)
+        ret = conn.query('select * from user where name=?', ('bobo',))
+        log.debug('result:%s', ret)
 
-    log.debug('release')
-    release(x)
-    log.debug('release ok')
-
-    log.debug('-' * 60)
 
     class Test2:
         @with_database("test1")
@@ -1039,175 +1001,44 @@ def test():
             ret = self.db.query("select * from user")
             log.debug(ret)
 
+    log.debug('-' * 60)
     t = Test2()
     t.test2()
 
 
-def test1():
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',      # db type, eg: mysql, sqlite
-                 'db':'test',       # db table
-                 'host':'127.0.0.1', # db host
-                 'port':3306,        # db port
-                 'user':'root',      # db user
-                 'passwd':'654321',# db password
-                 'charset':'utf8',# db charset
-                 'conn':20}          # db connections in pool
-           }
-
-    install(DATABASE)
-
-    while True:
-        x = random.randint(0, 10)
-        log.debug('x:', x)
+def test_ms_3():
+    for i in range(0, 10):
+        n = random.randint(1, 10)
         conns = []
-        for i in range(0, x):
+
+        last = dbpool['test'].size()
+
+        log.warn('acquire ... %d', n)
+        for i in range(0, n):
             c = acquire('test')
-            time.sleep(1)
             conns.append(c)
-            log.debug(dbpool['test'].size())
-
-        for c in conns:
-            release(c)
-            time.sleep(1)
-            log.debug(dbpool['test'].size())
-
-        time.sleep(1)
-        log.debug(dbpool['test'].size())
-
-def test2():
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'test',        # db name
-                 'host':'127.0.0.1', # db host
-                 'port':3306,        # db port
-                 'user':'root',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':110}          # db connections in pool
-           }
-
-    install(DATABASE)
-
-    def go():
-        #x = random.randint(0, 10)
-        #print('x:', x
-        #conns = []
-        #for i in range(0, x):
-        #    c = acquire('test')
-        #    #time.sleep(1)
-        #    conns.append(c)
-        #    print(dbpool['test'].size()
-
-        #for c in conns:
-        #    release(c)
-        #    #time.sleep(1)
-        #    print(dbpool['test'].size()
-
-        while True:
-            #time.sleep(1)
-            c = acquire('test')
-            #print(dbpool['test'].size()
-            release(c)
-            #print(dbpool['test'].size()
-
-    ths = []
-    for i in range(0, 100):
-        t = threading.Thread(target=go, args=())
-        ths.append(t)
-
-    for t in ths:
-        t.start()
-
-    for t in ths:
-        t.join()
-
-
-def test3():
-    import logger
-    logger.install('stdout')
-    global log
-    log = logger.log
-
-    DATABASE = {'test':{
-                'policy': 'round_robin',
-                'default_conn':'auto',
-                'master':
-                    {'engine':'mysql',
-                     'db':'test',
-                     'host':'127.0.0.1',
-                     'port':3306,
-                     'user':'root',
-                     'passwd':'123456',
-                     'charset':'utf8',
-                     'idle_timeout':60,
-                     'conn':20},
-                'slave':[
-                    {'engine':'mysql',
-                     'db':'test',
-                     'host':'127.0.0.1',
-                     'port':3306,
-                     'user':'zhaowei_r1',
-                     'passwd':'123456',
-                     'charset':'utf8',
-                     'conn':20},
-                    {'engine':'mysql',
-                     'db':'test',
-                     'host':'127.0.0.1',
-                     'port':3306,
-                     'user':'zhaowei_r2',
-                     'passwd':'123456',
-                     'charset':'utf8',
-                     'conn':20},
-                    ],
-                },
-
-           }
-
-    install(DATABASE)
-
-    while True:
-        x = random.randint(0, 10)
-        print('x:', x)
-        conns = []
-
-        print('acquire ...')
-        for i in range(0, x):
-            c = acquire('test')
-            time.sleep(1)
+            c.execute('create table if not exists ztest(id int(4) not null primary key auto_increment, name varchar(128) not null)')
             c.insert('ztest', {'name':'zhaowei%d'%(i)})
-            print(c.query('select count(*) from ztest'))
-            print(c.get('select count(*) from ztest'))
-            conns.append(c)
-            print(dbpool['test'].size())
+
+            c.query('select count(*) from ztest')
+            c.get('select count(*) from ztest')
+            c.select('ztest', fields='count(*)')
+
+            x = dbpool['test'].size()
+            
+            last = x
 
 
-        print('release ...')
+        log.warn('release ... %d', n)
         for c in conns:
             release(c)
-            time.sleep(1)
-            print(dbpool['test'].size())
+            #print(dbpool['test'].size())
 
-        time.sleep(1)
         print('-'*60)
         print(dbpool['test'].size())
-        print('-'*60)
         time.sleep(1)
 
 def test4(tcount):
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qf_core',        # db name
-                 'host':'172.100.101.106', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':10}          # db connections in pool
-           }
-
-    install(DATABASE)
-
     def run_thread():
         while True:
             time.sleep(0.01)
@@ -1247,19 +1078,6 @@ def test4(tcount):
 
 
 def test5():
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qf_core',        # db name
-                 'host':'172.100.101.106', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':20}          # db connections in pool
-           }
-
-    install(DATABASE)
-
     def run_thread():
         i = 0
         while i < 10:
@@ -1271,6 +1089,7 @@ def test5():
             i += 1
         pool = dbpool['test']
         log.debug("pool size: %s", pool.size())
+
     import threading
     th = []
     for i in range(0, 10):
@@ -1283,69 +1102,13 @@ def test5():
         t.start()
         log.debug("%s start", t.name)
 
-def test_with():
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qf_core',        # db name
-                 'host':'172.100.101.106', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':10}          # db connections in pool
-           }
-
-    install(DATABASE)
-    with get_connection('test') as conn:
-        record = conn.query("select retcd from profile where userid=227519")
-        print(record)
-        #record = conn.query("select * from chnlbind where userid=227519")
-        #print(record
-    pool = dbpool['test']
-    print(pool.size())
-
-    with get_connection('test') as conn:
-        record = conn.query("select * from profile where userid=227519")
-        print(record)
-        record = conn.query("select * from chnlbind where userid=227519")
-        print(record)
-
-    pool = dbpool['test']
-    print(pool.size())
 def test_format_time():
-    import logger
-    logger.install('stdout')
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qiantai',        # db name
-                 'host':'172.100.101.151', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':10}          # db connections in pool
-           }
-
-    install(database)
     with get_connection('test') as conn:
         print(conn.select('order'))
         print(conn.select_join('app','customer','inner',))
         print(conn.format_table('order as o'))
 
 def test_base_func():
-    import logger
-    logger.install('stdout')
-    database = {'test': # connection name, used for getting connection from pool
-                {'engine':'mysql',   # db type, eg: mysql, sqlite
-                 'db':'qf_core',        # db name
-                 'host':'172.100.101.151', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':10}          # db connections in pool
-           }
-    install(database)
     with get_connection('test') as conn:
         conn.insert('auth_user',{
             'username':'13512345677',
@@ -1453,45 +1216,7 @@ def test_new_rw():
         print('after query master:', conn._master, 'slave:', conn._slave)
         print('ok')
 
-def test_db_install():
-    import logger
-    logger.install('stdout')
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'pymysql',   # db type, eg: mysql, sqlite
-                 'db':'qiantai',        # db name
-                 'host':'172.100.101.156', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':10}          # db connections in pool
-           }
-
-    install(DATABASE)
-    install(DATABASE)
-    install(DATABASE)
-    install(DATABASE)
-
-    with get_connection('test') as conn:
-        for i in range(0, 100):
-            print(conn.select_one('order'))
-
 def test_trans():
-    import logger
-    logger.install('stdout')
-    DATABASE = {'test': # connection name, used for getting connection from pool
-                {'engine':'pymysql',   # db type, eg: mysql, sqlite
-                 'db':'qiantai',        # db name
-                 'host':'172.100.101.156', # db host
-                 'port':3306,        # db port
-                 'user':'qf',      # db user
-                 'passwd':'123456',  # db password
-                 'charset':'utf8',   # db charset
-                 'conn':10}          # db connections in pool
-           }
-
-    install(DATABASE)
-
     with get_connection('test') as conn:
         conn.start()
         conn.select_one('order')
@@ -1504,10 +1229,53 @@ def test_trans():
         conn.get('select connection_id()')
 
 
+def test_init_db(way='simple'):
+    import copy
+
+    DB = {'engine':'pymysql',   # db type, eg: mysql, sqlite
+          'db':'test',        # db name
+          'host':'127.0.0.1', # db host
+          'port':3306,        # db port
+          'user':'root',      # db user
+          'passwd':'123456',  # db password
+          'charset':'utf8',   # db charset
+          'conn':10}          # db connections in pool
+
+    DATABASE = {'test':
+        copy.deepcopy(DB)
+    }
+
+    DB1 = copy.deepcopy(DB)
+    DB2 = copy.deepcopy(DB)
+    DB3 = copy.deepcopy(DB)
+    DB4 = copy.deepcopy(DB)
+
+    DB2['user'] = 'testr1'
+    DB3['user'] = 'testr2'
+    DB4['user'] = 'testr3'
+
+    if way != 'simple':
+        DATABASE = {
+        'test':{
+            'policy': 'round_robin',
+            'default_conn':'auto',
+            'master': DB1,
+            'slave':[DB2, DB3, DB4],
+            },
+        }
+
+    install(DATABASE)
 
 
+def test_main():
+    import logger
+    logger.install('stdout')
+    
+    #test_sqlite()
 
-if __name__ == '__main__':
+    test_init_db('auto')
+    test_ms_3()
+
     #test_with()
     #test5()
     #time.sleep(50)
@@ -1518,8 +1286,11 @@ if __name__ == '__main__':
     #test_base_func()
     #test_new_rw()
     #test_db_install()
-    test_trans()
+    #test_trans()
     print('complete!')
 
 
+
+if __name__ == '__main__':
+    test_main()
 

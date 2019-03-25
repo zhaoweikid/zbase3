@@ -127,7 +127,7 @@ def test():
     sender.send(m)
 
 def test1():
-    from zbase.base import logger
+    from zbase3.base import logger
     logger.install('stdout')
     sendmail_balance(
             [

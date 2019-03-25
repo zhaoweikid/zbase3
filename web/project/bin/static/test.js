@@ -1,1 +1,3 @@
-alert(1);
+function mytest(name) {
+	alert(name);
+}

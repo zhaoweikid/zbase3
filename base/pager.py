@@ -154,7 +154,7 @@ class PageDataDB (PageDataBase):
             sql = self.query_sql % (pagesize)
         else:
             sql = self.query_sql % ((cur-1)*pagesize, pagesize)
-        log.info('PageDataDB load sql:%s', sql)
+        log.debug('PageDataDB load sql:%s', sql)
         self.data = self.db.query(sql, isdict=isdict)
         return self.data
 
@@ -165,7 +165,7 @@ class PageDataDB (PageDataBase):
         ret = self.db.query(self.count_sql)
         row = ret[0]
         self.records = int(row['count'])
-        log.info("PageDataDB count:%s", self.records)
+        log.debug("PageDataDB count:%s", self.records)
         a = divmod(self.records, pagesize)
         if a[1] > 0:
             page_count = a[0] + 1
@@ -175,7 +175,7 @@ class PageDataDB (PageDataBase):
 
 
 def db_pager(db, sql, pagecur, pagesize, count_sql=None, maxid=-1):
-    log.debug('sql:%s pagecur:%d pagesize:%d', sql, pagecur, pagesize)
+    #log.debug('sql:%s pagecur:%d pagesize:%d', sql, pagecur, pagesize)
     pgdata = PageDataDB(db, sql, count_sql, maxid)
     p = Pager(pgdata, pagecur, pagesize)
     p.split()

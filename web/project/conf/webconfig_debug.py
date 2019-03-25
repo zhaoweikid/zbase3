@@ -17,7 +17,7 @@ STATICS = {'/s/':'/bin/static/'}
 
 # 模板配置
 TEMPLATE = {
-    'cache': True,
+    'cache': False,
     'path': 'templates',
     'tmp': os.path.join(HOME, '../tmp'),
 }
