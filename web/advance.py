@@ -44,7 +44,7 @@ class APIHandler (Handler):
                     self.resp = Response('Session Error', 403)
                     raise HandlerFinish
 
-                self.ses = SessionRedis(server=self.session_conf['server'], sid=sid, expire=self.session_conf['expire'])
+                self.ses = SessionRedis(server=self.session_conf['server'], sid=sid, expire=self.session_conf['expire'], db=self.session_conf.get('db',0))
                 if self.ses.get('uid'):
                     self.resp = Response('Session Error', 403)
                     raise HandlerFinish
