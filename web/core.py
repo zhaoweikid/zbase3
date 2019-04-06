@@ -1,6 +1,7 @@
 # coding: utf-8
 import os, sys
 import re, time, types, mimetypes
+import urllib, urllib.request
 from zbase3.web import template, reloader
 from zbase3.base import dbpool
 from zbase3.web.httpcore import Request, Response, NotFound

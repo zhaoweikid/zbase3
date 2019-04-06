@@ -50,11 +50,11 @@ class Session (UserDict):
 try:
     import redis
     class SessionRedis (Session):
-        def __init__(self, server=None, sid=None, expire=3600):
+        def __init__(self, server=None, sid=None, expire=3600, db=0):
             addr = server[0]['addr']
             timeout = server[0]['timeout']
             self.conn = redis.Redis(host=addr[0], port=addr[1], 
-                    socket_timeout=timeout, db=0)
+                    socket_timeout=timeout, db=db)
             self.session_expire = expire
             Session.__init__(self, sid)
 
