@@ -4,4 +4,6 @@ urls = (
     ('^/ping$', "ping.Ping"),
     ('^/index$', "index.Index"),
     ('^/upload$', "file.UploadFile"),
+    ('^/api1$', "index.MyAPI1"),
+    ('^/api2/(login|logout|now|today|myerror)$', "index.MyAPI2"),
 )

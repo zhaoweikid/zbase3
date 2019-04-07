@@ -234,7 +234,7 @@ class WebApplication(object):
                                 obj = x()
                                 resp = obj.before(viewobj, *args, **kwargs)
                                 if resp:
-                                    log.debug('middleware return:%s', resp)
+                                    log.debug('middleware before:%s', resp)
                                     break
                                 middleware.append(obj)
 
@@ -250,6 +250,7 @@ class WebApplication(object):
 
                         for obj in middleware:
                             resp = obj.after(viewobj)
+                            log.debug('middleware after:%s', resp)
                         break
                 else:
                     resp = NotFound('Not Found')

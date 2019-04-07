@@ -27,7 +27,7 @@ DATABASE = {
         'user': 'root',
         'passwd': '123456',
         'charset': 'utf8',
-        'conn': 16,
+        'conn': 3,
     },
 }
 

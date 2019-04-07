@@ -39,9 +39,17 @@ DOCUMENT_ROOT = HOME
 CHARSET = 'UTF-8'
 
 # session配置
-# store:DiskSessionStore, expire:x, path:/tmp
-# store:RedisSessionStore, expire:x, 'addr':[(ip,port)]
-# store:MemcachedSessionStore, expire:x, addr:[(ip,port)]
-SESSION = {'store':'DiskSessionStore', 'expire':30, 'path':'/tmp'}
+# 1. session存储在文件中，expire为过期时间（分），path为存储路径
+# {'store':'SessionFile',  'expire':30, 'path':'/tmp'}
+# 2. session存储在redis中，expire为过期时间（分），addr为redis的地址
+# {'store':'SessionRedis', 'expire':30, 'server':[{'addr':(ip,port), 'timeout':1000}]}
 
+#SESSION = {'store':'SessionFile', 'expire':30, 'path':'/tmp'}
+
+SESSION = {
+    'store':'SessionRedis', 
+    'expire':30, 
+    'db':0, 
+    'server':[{'addr':('127.0.0.1',6379), 'timeout':1000}],
+}
 

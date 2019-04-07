@@ -5,7 +5,6 @@ import struct
 import time, random
 import datetime
 import traceback
-from functools import partial
 import tornado
 from tornado import ioloop
 from tornado.tcpserver import TCPServer
@@ -37,17 +36,6 @@ log = logging.getLogger()
 
 VERSION = 1
 
-
-def _json_default_trans(obj):
-    '''json对处理不了的格式的处理方法'''
-    if isinstance(obj, datetime.datetime):
-        return obj.strftime('%Y-%m-%d %H:%M:%S')
-    if isinstance(obj, datetime.date):
-        return obj.strftime('%Y-%m-%d')
-    raise TypeError('%r is not JSON serializable' % obj)
-
-
-json.dumps = partial(json.dumps, default=_json_default_trans, separators=(',', ':'))
 
 class Protocol (object):
     def __init__(self, body=''):
