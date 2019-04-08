@@ -61,12 +61,15 @@ class APIHandler (Handler):
         
     def finish(self):
         # 请求时不带sid，但是请求处理完成后有session data，写入sesion
-        if self.ses and isinstance(self.ses, dict):
-            ses = self.ses
-            self.create_session()
-            self.ses.update(ses)
+        if isinstance(self.ses, dict):
+            if self.ses:
+                ses = self.ses
+                self.create_session()
+                self.ses.update(ses)
+            else:
+                return
 
-        if not self.ses is None:
+        if self.ses:
             if self.ses.data:
                 self.ses.save()
                 self.set_cookie('sid', self.ses.sid)
