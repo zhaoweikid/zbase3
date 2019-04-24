@@ -13,13 +13,16 @@ T_REG       = 8
 T_MAIL      = 16
 T_IP        = 32
 T_MOBILE    = 64
+T_DATE      = 128
+T_DATETIME  = 256
 
 TYPE_MAP = {
     T_MAIL: re.compile("^[a-zA-Z0-9_\-\'\.]+@[a-zA-Z0-9_]+(\.[a-z]+){1,2}$"),
     T_IP: re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}$"),
     T_MOBILE: re.compile("^1[3578][0-9]{9}$"),
+    T_DATE: re.compile("^2[0-9]{3}(\-|/)[0-9]{2}(\-|/)[0-9]{2}$"),
+    T_DATETIME: re.compile("^2[0-9]{3}(\-|/)[0-9]{2}(\-|/)[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"),
 }
-#T_LIST  = 16
 
 opmap = {'eq':'=',
          'lt':'<',
@@ -33,7 +36,7 @@ opmap = {'eq':'=',
          }
 
 class Field:
-    def __init__(self, name, valtype=4, must=False, default = '', **options):
+    def __init__(self, name, valtype=T_STR, must=False, default = '', **options):
         self.name   = name
         self.type   = valtype # 值类型, 默认为字符串
         self.must = must # 是否必须有值不能为空
@@ -135,7 +138,7 @@ class Validator:
 
                 f.op = val[0]
                 v = val[1]  
-                if ',' in v: # , transfer to list
+                if val[0] != '=' and ',' in v: # , transfer to list
                     val = v.split(',')
                     f.value = [self._check_item(f,cv) for cv in val]
                     if not f.value:
@@ -216,7 +219,7 @@ def with_validator_self(func):
 
 
 def test1():
-    from zbase3.base import logger
+    from qfcommon3.base import logger
     log = logger.install('stdout')
  
     fields = [Field('age', T_INT),
@@ -244,7 +247,7 @@ def test1():
         log.debug('name:%s, value:%s, valuetype:%s, op:%s'%(f.name, f.value, type(f.value), f.op))
 
 def test2():
-    from zbase3.base import logger
+    from qfcommon3.base import logger
     log = logger.install('stdout')
  
     fields = [Field('age', T_INT),
@@ -282,7 +285,7 @@ def test2():
     log.info('after validator: %s', t.validator.data)
 
 def test3():
-    from zbase3.base import logger
+    from qfcommon3.base import logger
     log = logger.install('stdout')
  
     fields = [
@@ -309,9 +312,9 @@ def test3():
 
 
 def test4():
-    from zbase3.base import logger
+    from qfcommon3.base import logger
     log = logger.install('stdout')
-    from zbase3.web.httpcore import Request, Response
+    from qfcommon3.web.httpcore import Request, Response
     
     class Req: 
         def __init__(self, data):
