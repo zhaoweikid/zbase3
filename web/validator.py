@@ -15,6 +15,7 @@ T_IP        = 32
 T_MOBILE    = 64
 T_DATE      = 128
 T_DATETIME  = 256
+T_TIMESTAMP = 512
 
 TYPE_MAP = {
     T_MAIL: re.compile("^[a-zA-Z0-9_\-\'\.]+@[a-zA-Z0-9_]+(\.[a-z]+){1,2}$"),
@@ -22,6 +23,7 @@ TYPE_MAP = {
     T_MOBILE: re.compile("^1[3578][0-9]{9}$"),
     T_DATE: re.compile("^2[0-9]{3}(\-|/)[0-9]{2}(\-|/)[0-9]{2}$"),
     T_DATETIME: re.compile("^2[0-9]{3}(\-|/)[0-9]{2}(\-|/)[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"),
+    T_TIMESTAMP: re.compile("^[0-9]{1,10}$")
 }
 
 opmap = {'eq':'=',
@@ -36,7 +38,7 @@ opmap = {'eq':'=',
          }
 
 class Field:
-    def __init__(self, name, valtype=T_STR, must=False, default = '', **options):
+    def __init__(self, name, valtype=T_STR, must=False, default=None, **options):
         self.name   = name
         self.type   = valtype # 值类型, 默认为字符串
         self.must = must # 是否必须有值不能为空
@@ -131,7 +133,7 @@ class Validator:
                 if not val: # field defined not exist
                     if f.must: # null is not allowed, error
                         result.append(f.name)
-                    else:
+                    elif not f.default is None:
                         f.value = f.default
                         self.data[f.name] = f.default
                     continue
@@ -179,14 +181,15 @@ def with_validator(fields):
             
             self.data = self.validator.data
             
-            log.debug('validator check:%s', ret)
+            log.debug('validator check fail:%s', ret)
             if ret:
                 errfunc = getattr(self, 'error', None)
                 if errfunc:
                     return errfunc(ret)
                 else:
                     self.resp.status = 400
-                    return 'input error'
+                    raise ValidatorError('input error:'+ str(ret))
+                    #return 'input error'
             return func(self, *args, **kwargs)
         return _
     return f
@@ -211,7 +214,8 @@ def with_validator_self(func):
                 return errfunc(ret)
             else:
                 self.resp.status = 400
-                return 'input error'
+                #return 'input error'
+                raise ValidatorError('input error:'+ str(ret))
         return func(self, *args, **kwargs)
     return _
 
