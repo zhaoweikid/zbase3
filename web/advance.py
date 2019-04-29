@@ -20,6 +20,13 @@ class APIHandler (Handler):
     def initial(self):
         self.set_headers({'Content-Type': 'application/json; charset=UTF-8'})
         name = self.req.path.split('/')[-1]
+
+        self.ses = None
+        if self.session_conf:
+            sid = self.get_cookie('sid')
+            log.debug('sid: %s', sid)
+            self.ses = session.create(self.session_conf, sid)
+
         # name: _xxxx means private method, only called in LAN , 
         #       xxxx_ means not need check session
         if name.endswith('_'):
@@ -44,19 +51,15 @@ class APIHandler (Handler):
                 raise HandlerFinish
 
         # check session
-        self.ses = None
-        if self.session_conf:
-            sid = self.get_cookie('sid')
-            if not sid:
-                log.info('not found sid')
-                self.resp = Response('Session Error', 403)
-                raise HandlerFinish
-            log.debug('sid: %s', sid)
-            self.ses = session.create(self.session_conf, sid)
-            if not self.ses.data:
-                log.info('session %s no data', sid)
-                self.resp = Response('Session Error', 403)
-                raise HandlerFinish
+        if not sid:
+            log.info('not found sid')
+            self.resp = Response('Session ID Error', 403)
+            raise HandlerFinish
+
+        if not self.ses.data:
+            log.info('session %s no data', sid)
+            self.resp = Response('Session DATA Error', 403)
+            raise HandlerFinish
 
         
     def finish(self):
