@@ -1,6 +1,7 @@
+# coding: utf-8
 import json
 import datetime
-
+import decimal
 from functools import partial
 
 def _json_default_trans(obj):
@@ -9,6 +10,8 @@ def _json_default_trans(obj):
         return obj.strftime('%Y-%m-%d %H:%M:%S')
     if isinstance(obj, datetime.date):
         return obj.strftime('%Y-%m-%d')
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
     raise TypeError('%r is not JSON serializable' % obj)
 
 
