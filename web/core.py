@@ -25,7 +25,7 @@ class Handler(object):
         self.webapp = app
         self.req = req
         #self.ses = session.Session(app.settings.SESSION, req.cookie)
-        self.ses = {}
+        self.ses = None
         self.resp = Response()
         self.write = self.resp.write
         req.allowed_methods = []

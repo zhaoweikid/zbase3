@@ -62,6 +62,7 @@ class MyAPI2(APIHandler):
 
     def now(self):
         now = datetime.datetime.now()
+        self.ses['t'] = now
         return str(now)[:19]
 
     def today(self):

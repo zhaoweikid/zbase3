@@ -47,37 +47,40 @@ class APIHandler (Handler):
             c = self.req.clientip()
             log.debug('clientip:%s', c)
             if not c.startswith(('192.168.', '10.', '127.')):
-                self.resp = Response('Access Deny', 403)
+                self.resp = Response(status=403)
                 raise HandlerFinish
 
         # check session
         if not sid:
             log.info('not found sid')
-            self.resp = Response('Session ID Error', 403)
+            self.resp = Response('403 sesson error', status=403)
             raise HandlerFinish
 
         if not self.ses.data:
             log.info('session %s no data', sid)
-            self.resp = Response('Session DATA Error', 403)
+            self.resp = Response('403 session error', status=403)
             raise HandlerFinish
 
         
     def finish(self):
         # 请求时不带sid，但是请求处理完成后有session data，写入sesion
-        if isinstance(self.ses, dict):
-            if self.ses:
-                ses = self.ses
-                self.create_session()
-                self.ses.update(ses)
-            else:
-                return
+        #if isinstance(self.ses, dict):
+        #    if self.ses:
+        #        ses = self.ses
+        #        self.create_session()
+        #        self.ses.update(ses)
+        #    else:
+        #        return
+        #if self.ses:
+        #    if self.ses.data:
+        #        self.ses.save()
+        #        self.set_cookie('sid', self.ses.sid)
+        #    else:
+        #        self.ses.remove()
 
-        if self.ses:
-            if self.ses.data:
-                self.ses.save()
-                self.set_cookie('sid', self.ses.sid)
-            else:
-                self.ses.remove()
+        if self.ses.auto_save():
+            self.set_cookie('sid', self.ses.sid)
+
 
     def create_session(self):
         self.ses = session.create(self.session_conf)

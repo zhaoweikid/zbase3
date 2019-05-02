@@ -204,6 +204,9 @@ class Request(object):
 
 class Response(object):
     def __init__(self, content='', status=200, mimetype='text/html', charset='utf-8'):
+        if status >= 300 and not content:
+            content = '%d %s' % (status, HTTP_STATUS_CODES.get(status, ''))
+
         if type(content) == bytes:
             self.content = content
         else:
