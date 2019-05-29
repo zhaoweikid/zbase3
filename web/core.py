@@ -240,7 +240,10 @@ class WebApplication(object):
 
                             ret = getattr(viewobj, req.method)(*args, **kwargs)
                             if ret:
-                                viewobj.resp.write(ret)
+                                if isinstance(ret, (str, bytes)): 
+                                    viewobj.resp.write(ret)
+                                elif isinstance(ret, Response):
+                                    viewobj.resp = ret
                             viewobj.finish()
 
                         except HandlerFinish:

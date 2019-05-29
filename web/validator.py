@@ -223,7 +223,7 @@ def with_validator_self(func):
 
 
 def test1():
-    from qfcommon3.base import logger
+    from zbase3.base import logger
     log = logger.install('stdout')
  
     fields = [Field('age', T_INT),
@@ -251,7 +251,7 @@ def test1():
         log.debug('name:%s, value:%s, valuetype:%s, op:%s'%(f.name, f.value, type(f.value), f.op))
 
 def test2():
-    from qfcommon3.base import logger
+    from zbase3.base import logger
     log = logger.install('stdout')
  
     fields = [Field('age', T_INT),
@@ -289,7 +289,7 @@ def test2():
     log.info('after validator: %s', t.validator.data)
 
 def test3():
-    from qfcommon3.base import logger
+    from zbase3.base import logger
     log = logger.install('stdout')
  
     fields = [
@@ -316,9 +316,9 @@ def test3():
 
 
 def test4():
-    from qfcommon3.base import logger
+    from zbase3.base import logger
     log = logger.install('stdout')
-    from qfcommon3.web.httpcore import Request, Response
+    from zbase3.web.httpcore import Request, Response
     
     class Req: 
         def __init__(self, data):

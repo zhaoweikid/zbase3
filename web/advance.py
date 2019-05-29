@@ -21,10 +21,10 @@ class APIHandler (Handler):
         self.set_headers({'Content-Type': 'application/json; charset=UTF-8'})
         name = self.req.path.split('/')[-1]
 
+        sid = self.get_cookie('sid')
+        log.debug('sid: %s', sid)
         self.ses = None
         if self.session_conf:
-            sid = self.get_cookie('sid')
-            log.debug('sid: %s', sid)
             self.ses = session.create(self.session_conf, sid)
 
         # name: _xxxx means private method, only called in LAN , 
@@ -53,12 +53,17 @@ class APIHandler (Handler):
         # check session
         if not sid:
             log.info('not found sid')
-            self.resp = Response('403 sesson error', status=403)
+            self.resp = Response('403 sesson error 1', status=403)
+            raise HandlerFinish
+
+        if not self.ses:
+            log.info('session %s no obj', sid)
+            self.resp = Response('403 session error 2', status=403)
             raise HandlerFinish
 
         if not self.ses.data:
             log.info('session %s no data', sid)
-            self.resp = Response('403 session error', status=403)
+            self.resp = Response('403 session error 3', status=403)
             raise HandlerFinish
 
         
@@ -78,7 +83,7 @@ class APIHandler (Handler):
         #    else:
         #        self.ses.remove()
 
-        if self.ses.auto_save():
+        if self.ses and self.ses.auto_save():
             self.set_cookie('sid', self.ses.sid)
 
 
