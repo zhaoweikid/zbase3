@@ -99,7 +99,7 @@ class APIHandler (Handler):
             ret = func()
             if isinstance(ret, tuple) and len(ret) == 2:
                 self.fail(ret[0], ret[1])
-            else:
+            elif ret:
                 self.succ(ret)
         else:
             self.resp = NotFound('Not Found: ' + self.req.url)  
@@ -112,8 +112,9 @@ class APIHandler (Handler):
         if data:
             obj['data'] = data
         s = json.dumps(obj)
-        log.info('succ: %s', s)
+        #log.info('succ: %s', s)
         self.write(s)
+        return s
 
     def fail(self, ret=ERR, err='internal error', debug=''):
         '''成功返回的结构，如果结果不一样，需要重新定义'''
@@ -121,8 +122,9 @@ class APIHandler (Handler):
         if debug:
             obj['debug'] = debug
         s = json.dumps(obj)
-        log.info('fail: %s', s)
+        #log.info('fail: %s', s)
         self.write(s)
+        return s
 
 
 

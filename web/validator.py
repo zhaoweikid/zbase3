@@ -3,6 +3,7 @@ import re
 import types
 import logging
 import traceback
+from zbase3.web.core import HandlerFinish
 
 log = logging.getLogger()
 
@@ -185,11 +186,12 @@ def with_validator(fields):
             if ret:
                 errfunc = getattr(self, 'error', None)
                 if errfunc:
-                    return errfunc(ret)
+                    errfunc(ret)
                 else:
                     self.resp.status = 400
-                    raise ValidatorError('input error:'+ str(ret))
-                    #return 'input error'
+                    self.resp.write('input error')
+                #raise ValidatorError('input error:'+ str(ret))
+                raise HandlerFinish('validator error:'+ str(ret))
             return func(self, *args, **kwargs)
         return _
     return f
@@ -208,14 +210,13 @@ def with_validator_self(func):
         if ret:
             #log.debug('err:%s', errfunc(ret))
             errfunc = getattr(self, 'error')
-            if not errfunc: 
-                errfunc = getattr(self, '%s_error'% func.__name__, None)
             if errfunc:
-                return errfunc(ret)
+                errfunc(ret)
             else:
                 self.resp.status = 400
-                #return 'input error'
-                raise ValidatorError('input error:'+ str(ret))
+                self.resp.write('input error')
+            #raise ValidatorError('input error:'+ str(ret))
+            raise HandlerFinish('validator error:'+ str(ret))
         return func(self, *args, **kwargs)
     return _
 

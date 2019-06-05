@@ -240,7 +240,7 @@ class WebApplication(object):
 
                             ret = getattr(viewobj, req.method)(*args, **kwargs)
                             if ret:
-                                if isinstance(ret, (str, bytes)): 
+                                if isinstance(ret, (str, bytes)) and not viewobj.resp.content: 
                                     viewobj.resp.write(ret)
                                 elif isinstance(ret, Response):
                                     viewobj.resp = ret
