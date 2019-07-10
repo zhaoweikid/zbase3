@@ -4,3 +4,6 @@
 *.o
 __pycache__
 *.swp
+zbase3
+*.so
+.pytest_cache

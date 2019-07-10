@@ -127,24 +127,25 @@ class WebApplication(object):
     def add_urls(self, urls, appname=''):
         tmpurls = []
         for item in urls.urls:
-            #log.debug('initial url:%s', item[0])
-            if len(item) == 2:
-                if type(item[1]) == str:
-                    mod, cls = item[1].rsplit('.', 1)
-                    mod = __import__(mod, None, None, [''])
-                    obj = getattr(mod, cls)
-                else:
-                    obj = item[1]
-
-                if appname:
-                    tmpurls.append((re.compile('/'+appname+item[0]), obj, {}))
-                else:
-                    tmpurls.append((re.compile(item[0]), obj, {}))
+            if type(item[1]) == str:
+                mod, cls = item[1].rsplit('.', 1)
+                mod = __import__(mod, None, None, [''])
+                obj = getattr(mod, cls)
             else:
-                if appname:
-                    tmpurls.append((re.compile('/'+appname+item[0]), obj, item[2]))
-                else:
-                    tmpurls.append((re.compile(item[0]), obj, item[2]))
+                obj = item[1]
+
+            urlpath = item[0]
+            if appname:
+                urlpath = '^/' + appname + urlpath.lstrip('^').rstrip('$') + '$'
+            else:
+                urlpath = '^' + urlpath.lstrip('^').rstrip('$') + '$'
+
+            log.debug('url: %s %s', urlpath, item[1])
+            if len(item) == 2:
+                tmpurls.append((re.compile(urlpath), obj, {}))
+            else:
+                tmpurls.append((re.compile(urlpath), obj, item[2]))
+        
         #self.urls = tmpurls + self.urls
         self.urls += tmpurls
 
@@ -165,10 +166,17 @@ class WebApplication(object):
             dbpool.install(self.settings.DATABASE)
 
         self.urls = []
-        for appname in self.settings.APPS:
-            self.add_app(appname)
+        if hasattr(self.settings, 'APP_PATH'):
+            log.debug('APP_PATH: %s', self.settings.APP_PATH)
+            if self.settings.APP_PATH:
+                apps = os.listdir(self.settings.APP_PATH)
+                sys.path.append(self.settings.APP_PATH)
+                for appname in apps:
+                    if '.' in appname:
+                        continue
+                    self.add_app(appname)
 
-        log.info('initial url map')
+        log.info('initial url')
         self.add_urls(self.settings.URLS)
 
     def run(self, host='0.0.0.0', port=8000):
@@ -184,9 +192,9 @@ class WebApplication(object):
 
 
     def add_app(self, appname):
-        log.debug('add app:%s', appname)
+        log.info('add app:%s', appname)
         m = __import__(appname)
-        self.add_urls(m.URLS, appname)
+        self.add_urls(m, appname)
 
     def __call__(self, environ, start_response):
         times = [time.time()]

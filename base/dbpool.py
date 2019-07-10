@@ -1,4 +1,41 @@
 # coding: utf-8
+'''
+CREATE DATABASE dbmeta;
+CREATE TABLE instance (
+    id bigint(20) not null primary key,
+    name varchar(128) not null COMMENT '数据库实例名称',
+    host varchar(128) not null COMMENT '数据库地址 ip',
+    port smallint not null COMMENT '数据库实例服务端口',
+    dbgroup varchar(128) not null COMMENT '数据库组，或者说是集群名称',
+    dbtype varchar(64) not null COMMNET '数据库类型: master/slave/master_proxy/slave_proxy/proxy',
+    master varchar(128) COMMENT '该实例的master是的name',
+    ctime DATETIME not null COMMENT '添加时间',
+    utime DATETIME not null COMMENT '更新时间'
+)ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT '数据库实例表';
+
+CREATE TABLE logicdb (
+    id bigint(20) not null primary key,
+    dbname varchar(128) not null COMMENT '逻辑库名',
+    tname varchar(128) not null COMMENT '逻辑表名',
+    way char(1) not null default 'r' COMMENT '拆分的方式: r(横向拆分)/c(纵向拆分)',
+    policy varchar(64) not null COMMENT '策略: hash/month/week/day/map',
+    field varchar(64) default 'id' COMMENT '横向拆分策略的字段名，默认为id'
+    memo varchar(1024) COMMENT '扩展信息，比如map拆分策略的对应表',
+    ctime DATETIME not null COMMENT '添加时间',
+    utime DATETIME not null COMMENT '更新时间'
+)ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT '数据库逻辑表';
+
+CREATE TABLE slice (
+    id bigint(20) not null primary key,
+    logic_id bigint(20) not null COMMENT 'logicdb表id',
+    real_dbname varchar(128) not null COMMENT '真实规则库名, 如: qf_trade_${name}',
+    real_tname varchar(128) not null COMMENT '真实规则表名, 如: record_${name}',
+    value varchar(128) not null default 0 COMMENT '值，辅助用来决策',
+    ctime DATETIME not null COMMENT '添加时间',
+    utime DATETIME not null COMMENT '更新时间'
+)ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT '数据库拆分的逻辑与真实表对应关系';
+
+'''
 import time, datetime, os
 import types, random
 import threading

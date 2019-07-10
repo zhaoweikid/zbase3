@@ -22,10 +22,9 @@ TEMPLATE = {
     'tmp': os.path.join(HOME, '../tmp'),
 }
 
-# APP就是一个子目录
-APPS = (
-
-)
+# 默认在此目录下的所有都是APP
+# 每个APP有自己独立的url和handler
+#APP_PATH = os.path.join(HOME, 'bin/apps')
 
 # 中间件
 MIDDLEWARE = (
