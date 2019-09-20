@@ -70,7 +70,7 @@ class MyAPI2(APIHandler):
         return {'day':str(now.date()), 'time':int(time.time())}
 
     def myerror(self):
-        return -100, 'error: %d' % int(time.time())
+        return '1201', 'error: %d' % int(time.time())
 
 
     def succ(self, data=None):

@@ -168,7 +168,7 @@ def restore(selector, thriftmod, framed=False):
             log.debug('try restore %s', server['server']['addr'])
             addr = server['server']['addr']
             transport = TSocket.TSocket(addr[0], addr[1])
-            transport.setTimeout(server['server']['timeout'])
+            transport.setTimeout(1000)
             if framed:
                 transport = TTransport.TFramedTransport(transport)
             else:
@@ -177,6 +177,10 @@ def restore(selector, thriftmod, framed=False):
             client = thriftmod.Client(protocol)
             transport.open()
             client.ping()
+        except socket.timeout:
+            log.warn('timeout 1000')
+            log.error(traceback.format_exc())
+            continue
         except:
             log.error(traceback.format_exc())
             log.debug("restore fail: %s", server['server']['addr'])
@@ -188,24 +192,6 @@ def restore(selector, thriftmod, framed=False):
         log.debug('restore ok %s', server['server']['addr'])
         server['valid'] = True
 
-
-#def restore(server_selector):
-#    from zbase.thriftclient.payprocessor import PayProcessor
-#    notvalid = server_selector.not_valid()
-#    for server in notvalid:
-#        log.debug('try restore %s', server['server']['addr'])
-#        try:
-#            client = ThriftClient(server['server'], PayProcessor, 100)
-#            raise_except = client.raise_except
-#            client.raise_except = True
-#            client.ping()
-#        except:
-#            pass
-#        else:
-#            server['valid'] = True
-#            log.debug('restore ok %s', server['server']['addr'])
-#
-#        client.raise_except = raise_except
 
 class HttpClientError(Exception):
     pass
@@ -309,7 +295,7 @@ def test_http():
 
 
 def test():
-    from zbase3.thriftclient.payprocessor import PayProcessor
+    from thriftclient3.payprocessor import PayProcessor
     from zbase3.base import logger
     global log
     logger.install('stdout')
@@ -334,7 +320,7 @@ def test():
         client.ping()
 
 def test2():
-    from zbase3.thriftclient.encryptor import Encryptor
+    from thriftclient3.encryptor import Encryptor
     from zbase3.base import logger
     global log
     logger.install('stdout')
@@ -351,7 +337,7 @@ def test2():
 
 
 def test3():
-    from zbase3.thriftclient.notifier import Notifier
+    from thriftclient3.notifier import Notifier
     from zbase3.base import logger
     global log
     logger.install('stdout')
@@ -372,7 +358,7 @@ def test3():
     log.debug("send notify return:%s", ret)
 
 def test4():
-    from zbase3.thriftclient.payprocessor import PayProcessor
+    from thriftclient3.payprocessor import PayProcessor
     from zbase3.base import logger
     global log
     log = logger.install('stdout')

@@ -15,7 +15,7 @@ from zbase3.base import logger
 logger.install(config.LOGFILE)
 
 from zbase3.server import thriftserver
-#from zbase3.thriftclient import *
+#from thriftclient3 import *
 from zbase3.micro import core
 import main
 

@@ -12,7 +12,7 @@ OK  = 0
 ERR = -1
 
 class APIHandler (Handler):
-    # 只要配置了sessino_conf, 所有的url都会检查session，不需要检查的再session_nocheck中设置
+    # 只要配置了sessino_conf, 所有的url都会检查session，不需要检查的在session_nocheck中设置
     session_conf = None
     # 不检查session的url, {url:method} or [url1,url2,...]
     session_nocheck = {}
@@ -30,17 +30,17 @@ class APIHandler (Handler):
         # name: _xxxx means private method, only called in LAN , 
         #       xxxx_ means not need check session
         if name.endswith('_'):
-            log.debug('no need check session 1')
+            #log.debug('no check session 1')
             return
 
         if isinstance(self.session_nocheck, dict):
             noses_method = self.session_nocheck.get(self.req.path)
             if noses_method and (noses_method == '*' or noses_method == self.req.method):
-                log.debug('no need check session 2')
+                #log.debug('no check session 2')
                 return
         elif isinstance(self.session_nocheck, (list,tuple)):
             if self.req.path in self.session_nocheck:
-                log.debug('no need check session 3')
+                #log.debug('no check session 3')
                 return
 
         if name.startswith('_'): # private
@@ -69,20 +69,6 @@ class APIHandler (Handler):
         
     def finish(self):
         # 请求时不带sid，但是请求处理完成后有session data，写入sesion
-        #if isinstance(self.ses, dict):
-        #    if self.ses:
-        #        ses = self.ses
-        #        self.create_session()
-        #        self.ses.update(ses)
-        #    else:
-        #        return
-        #if self.ses:
-        #    if self.ses.data:
-        #        self.ses.save()
-        #        self.set_cookie('sid', self.ses.sid)
-        #    else:
-        #        self.ses.remove()
-
         if self.ses and self.ses.auto_save():
             self.set_cookie('sid', self.ses.sid)
 
@@ -116,11 +102,13 @@ class APIHandler (Handler):
         self.write(s)
         return s
 
-    def fail(self, ret=ERR, err='internal error', debug=''):
+    def fail(self, ret=ERR, err='internal error', debug='', data=None):
         '''成功返回的结构，如果结果不一样，需要重新定义'''
         obj = {'ret':ret, 'err':err}
         if debug:
             obj['debug'] = debug
+        if data:
+            obj['data'] = data
         s = json.dumps(obj)
         #log.info('fail: %s', s)
         self.write(s)

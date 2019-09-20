@@ -77,7 +77,7 @@ class HTTPClient:
 
             return ret
 
-    def _make_args(self, urlpath, args):
+    def _make_args(self, urlpath, **args):
         params = []
 
         print('args:', args)

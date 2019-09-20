@@ -95,7 +95,7 @@ def install(logdict, **options):
             'filename': name,
         }
         if options:
-            if options.has_key('when'):
+            if 'when' in options:
                 filecf.update({'class': 'logging.handlers.TimedRotatingFileHandler'})
             filecf.update(options)
         return filecf

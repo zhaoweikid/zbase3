@@ -36,52 +36,88 @@ log = logging.getLogger()
 
 VERSION = 1
 
-
 class Protocol (object):
-    def __init__(self, body=''):
+    def __init__(self):
         global VERSION
-        self.body = body
-
         self.version = VERSION
         self.msgid = 0
+
+    def __str__(self):
+        return '<Protocol version:%d msgid:%d>' % \
+            (self.version, self.msgid)
+
+class ReqProto (Protocol):
+    def __init__(self):
+        Protocol.__init__(self)
+        
         self.name  = ''
         self.params = []
         self.options = ''
 
-        # for response
-        self.retcode = None
-        self.result = None
-
-        if body:
-            self.loads(body)
-
     def __str__(self):
-        return '<Protocol version:%d msgid:%d name:%s param:%s code:%s result:%s>' % \
-            (self.version, self.msgid, self.name, self.params, str(self.retcode), str(self.result))
+        return '<ReqProto ver:%d msgid:%d name:%s param:%s>' % \
+            (self.version, self.msgid, self.name, self.params)
 
-    def loads(self, body):
+    @staticmethod
+    def loads(body):
         if isinstance(body, bytes):
             body = body.decode('utf-8')
-        self.version, self.msgid, self.name, self.params = json.loads(body)
+        version, msgid, name, params = json.loads(body)
+
+        p = ReqProto()
+        p.version = version
+        p.msgid   = msgid
+        p.name    = name
+        p.params  = params
+
+        return p
+
         
-        if isinstance(self.name, int): #response
-            self.retcode = self.name
-            self.result = self.params
-
-            self.name = ''
-            self.params = []
-
     def dumps(self, head=True):
         if self.msgid == 0:
             self.msgid = random.randint(1, 100000000)
-        if self.retcode is None: # request
-            obj = [self.version, self.msgid, self.name, self.params]
-        else: # response
-            obj = [self.version, self.msgid, self.retcode, self.result]
+        obj = [self.version, self.msgid, self.name, self.params]
         s = json.dumps(obj)
         if head:
             s = '%08d' % (len(s)) + s
         return s.encode('utf-8')
+
+
+class RespProto (Protocol):
+    def __init__(self, msgid):
+        Protocol.__init__(self)
+
+        self.msgid   = msgid
+        self.retcode = None
+        self.result  = None
+
+    def __str__(self):
+        return '<RespProto ver:%d msgid:%d code:%s result:%s>' % \
+            (self.version, self.msgid, str(self.retcode), str(self.result))
+
+    @staticmethod
+    def loads(body):
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        version, msgid, code, result = json.loads(body)
+
+        p = RespProto(msgid)
+        p.version = version
+        p.retcode = code
+        p.result  = result
+
+        return p
+        
+    def dumps(self, head=True):
+        if self.msgid == 0:
+            self.msgid = random.randint(1, 100000000)
+        obj = [self.version, self.msgid, self.retcode, self.result]
+        s = json.dumps(obj)
+        if head:
+            s = '%08d' % (len(s)) + s
+        return s.encode('utf-8')
+
+
 
 
 def recvall(sock, count):
@@ -127,25 +163,24 @@ class TCPServerHandler (object):
                     log.info('read body error')
                     break
 
-                p = Protocol(data)
-                p2 = Protocol()
-                p2.msgid = p.msgid
+                p1 = ReqProto.loads(data)
+                p2 = RespProto(p1.msgid)
      
                 start = time.time()
                 try:
-                    #log.debug('call %s %s', p.name, p.params)
-                    f = getattr(self._handler, p.name, None)
+                    log.debug('call %s %s', p1.name, p1.params)
+                    f = getattr(self._handler, p1.name, None)
                     if not f:
-                        log.warn('not found method '+p.name)
+                        log.warn('not found method '+p1.name)
                         p2.retcode = ERR_METHOD
-                        p2.result = "not found method " + p.name
+                        p2.result = "not found method " + p1.name
                         self.write_data(p2.dumps())
                         continue
 
-                    if isinstance(p.params, dict):
-                        p2.retcode,p2.result = f(**p.params)
+                    if isinstance(p1.params, dict):
+                        p2.retcode,p2.result = f(**p1.params)
                     else:
-                        p2.retcode,p2.result = f(*p.params)
+                        p2.retcode,p2.result = f(*p1.params)
                 except Exception as e:
                     p2.retcode = ERR_EXCEPT
                     p2.result  = str(e)
@@ -153,7 +188,8 @@ class TCPServerHandler (object):
                 self.write_data(p2.dumps())
                 end = time.time()
                 log.info('func=%s|id=%d|time=%d|params=%s|ret=%d|data=%s', 
-                    p.name, p.msgid, int((end-start)*1000000), p.params, p2.retcode, p2.result)
+                    p1.name, p1.msgid, int((end-start)*1000000), 
+                    p1.params, p2.retcode, p2.result)
         except: 
             log.info(traceback.format_exc())
 
@@ -175,29 +211,38 @@ class RPCServerUDP(DatagramServer):
         self._handlecls = handlecls
 
     def handle(self, data, address):
-        p = Protocol(data[8:])
-        p2 = Protocol()
-        p2.msgid = p.msgid
+        p1 = ReqProto.loads(data[8:])
+        p2 = RespProto(p1.msgid)
 
         start = time.time()
         try:
             obj = self._handlecls(address)
-            f = getattr(obj, p.name, None)
+            f = getattr(obj, p1.name, None)
             if not f:
-                log.warn('not found method '+p.name)
+                log.warn('not found method '+p1.name)
                 p2.retcode = ERR_METHOD
-                p2.result = "not found method " + p.name
+                p2.result = "not found method " + p1.name
                 return
 
-            if isinstance(p.params, dict):
-                p2.retcode,p2.result = f(**p.params)
+            if isinstance(p1.params, dict):
+                p2.retcode,p2.result = f(**p1.params)
             else:
-                p2.retcode,p2.result = f(*p.params)
+                p2.retcode,p2.result = f(*p1.params)
+            self.socket.sendto(p2.dumps(), address)
         except Exception as e:
-            p2.retcode = RET_EXCEPT
+            log.warn(traceback.format_exc())
+            p2.retcode = ERR_EXCEPT
             p2.result  = str(e)
         finally:
-            self.socket.sendto(p2.dumps(), address)
+            end = time.time()
+            log.info('func=%s|id=%d|time=%d|params=%s|ret=%d|data=%s', 
+                p1.name, p1.msgid, int((end-start)*1000000), 
+                p1.params, p2.retcode, p2.result)
+
+
+class Handler:
+    def __init__(self, addr):
+        self.addr = addr
 
 
 def gevent_server(port, handler, proto='tcp'):
@@ -215,7 +260,7 @@ def gevent_server(port, handler, proto='tcp'):
         log.warn("server stopped")
     else: 
         srv = servers[ps[0]](('0.0.0.0', port), handler)
-        log.info('server started at:%d', port)
+        log.warn('server started at:%d', port)
         srv.serve_forever()
         log.warn("server stopped")
 
@@ -279,7 +324,7 @@ class RPCClient:
                         self._conn = ssl.wrap_socket(self._conn, keyfile=self._keyfile, certfile=self._certfile)
 
                     self._conn.settimeout(timeout/1000.0)
-                    log.debug('connect %s', serv['addr'])
+                    #log.debug('connect %s', serv['addr'])
                     self._conn.connect(serv['addr'])
                     if 'timeout' in serv:
                         self._conn.settimeout(serv['timeout'])
@@ -297,7 +342,8 @@ class RPCClient:
                 continue
             finally:
                 if self._proto == 'tcp':
-                    log.info('server=rpc|func=open|addr=%s:%d|time=%d|ret=%d', serv['addr'][0], serv['addr'][1], (time.time()-t)*1000000, ret)
+                    log.info('server=rpc|func=connect|addr=%s:%d|time=%d|ret=%d', 
+                        serv['addr'][0], serv['addr'][1], (time.time()-t)*1000000, ret)
 
             break
 
@@ -329,20 +375,20 @@ class RPCClient:
 
 
     def _call(self, name, args):
+        #log.debug('call name:%s args:%s', name, args)
         t = time.time()
         retcode = -1
         try:
-            p = Protocol()
+            p = ReqProto()
             p.name = name
             p.params = args
             p.msgid = self._seqid
             self._seqid += 1
             s = p.dumps()
 
-            #if not self._conn:
-            #    self._connect()
+            #log.debug('send:%s', s[8:])
 
-            if self.protocol == 'tcp':
+            if self._proto == 'tcp':
                 self._conn.sendall(s)
                 data = self._recvall()
             else:
@@ -353,7 +399,9 @@ class RPCClient:
                     return ERR, 'no data'
                 data = data[8:]
 
-            p2 = Protocol(data)
+            #log.debug('recv:%s', data)
+
+            p2 = RespProto.loads(data)
             if p2.msgid != p.msgid:
                 raise RPCError('seqid error: %d,%d' % (p.msgid, p2.msgid))
             retcode = p2.retcode
@@ -361,7 +409,8 @@ class RPCClient:
         except:
             raise
         finally:
-            log.info('server=rpc|func=%s|args=%s|time=%d|ret=%d', name, args, (time.time()-t)*1000000, retcode)
+            log.info('server=rpc|func=%s|msgid=%d|args=%s|time=%d|ret=%d', 
+                name, p.msgid, args, (time.time()-t)*1000000, retcode)
 
     def _recvall(self):
         head = self._conn.recv(8)
@@ -378,10 +427,10 @@ class RPCClient:
         return _
 
 
-def test():
+def test_server():
     global log
     log = logger.install('stdout')
-    class MyHandler:
+    class MyHandler (Handler):
         def ping(self, name):
             log.debug('ping ' + name)
             return 0, 'ping '+name
@@ -389,6 +438,33 @@ def test():
     gevent_server(7000, MyHandler, proto='tcp,udp')
 
 
+def test_client():
+    global log
+    log = logger.install('stdout')
+
+    addr = {'addr':('127.0.0.1', 7000), 'timeout':1000}
+    p = RPCClient(addr, proto='udp')
+    p.ping('nana')
+
+def test_client_perf():
+    global log
+    log = logger.install('stdout')
+
+    addr = {'addr':('127.0.0.1', 7000), 'timeout':1000}
+    p = RPCClient(addr, proto='udp')
+    n = 1000
+    start = time.time()
+    for i in range(0, n):
+        p.ping('nana')
+    end = time.time()
+
+    print('n:', n, 'avg:', int(((end-start)/n)*1000000))
+
+
+def test():
+    f = globals()[sys.argv[1]]
+    f()
+ 
 if __name__ == '__main__':
     test()
 

@@ -35,7 +35,7 @@ def run_tornado(app, port=8000, proc=1, maxproc=100, *args, **kwargs):
     tornado.ioloop.IOLoop.instance().start()
 
 def run_gevent(app, host='127.0.0.1', port=8000, *args, **kwargs):
-    from gevent.wsgi import WSGIServer
+    from gevent.pywsgi import WSGIServer
 
     server = WSGIServer((host, port), app)
     server.backlog = 1024

@@ -182,14 +182,14 @@ def with_validator(fields):
             
             self.data = self.validator.data
             
-            log.debug('validator check fail:%s', ret)
+            log.debug('validator fail:%s', ret)
             if ret:
                 errfunc = getattr(self, 'error', None)
                 if errfunc:
                     errfunc(ret)
                 else:
                     self.resp.status = 400
-                    self.resp.write('input error')
+                    self.resp.write('input error: '+','.join(ret))
                 #raise ValidatorError('input error:'+ str(ret))
                 raise HandlerFinish('validator error:'+ str(ret))
             return func(self, *args, **kwargs)

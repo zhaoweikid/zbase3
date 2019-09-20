@@ -156,7 +156,7 @@ class HTTPClient:
             header.update(kwargs.pop('headers'))
 
         if isinstance(json_dict, dict):
-            post_data = json.dumps(json_dict, ensure_ascii = escape)
+            post_data = json.dumps(json_dict, ensure_ascii = escape).encode()
         else:
             post_data = json_dict
 
@@ -242,7 +242,7 @@ class Urllib3Client(HTTPClient):
 
 class RequestsClient(HTTPClient):
     name = 'requests'
-    
+
 
     @timeit
     def post_file(self, url, data={}, files={}, **kwargs):
