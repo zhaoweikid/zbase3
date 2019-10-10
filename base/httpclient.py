@@ -185,6 +185,9 @@ class HTTPClient:
 
         log.debug('post_data=%s', xml)
 
+        if isinstance(xml,str):
+            xml = xml.encode(encoding="utf-8")
+
         content, code, headers = self.request('post', url, header, xml, **kwargs)
 
         return content

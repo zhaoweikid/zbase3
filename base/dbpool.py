@@ -1,38 +1,4 @@
 # coding: utf-8
-'''
-CREATE DATABASE dbmeta;
-CREATE TABLE instance (
-    id bigint(20) not null primary key,
-    name varchar(128) not null COMMENT '数据库实例名称',
-    host varchar(128) not null COMMENT '数据库地址 ip',
-    port smallint not null COMMENT '数据库实例服务端口',
-    dbgroup varchar(128) not null COMMENT '数据库组，或者说是集群名称',
-    dbtype varchar(64) not null COMMENT '数据库类型: master/slave/master_proxy/slave_proxy/proxy',
-    master varchar(128) COMMENT '该实例的master的name',
-    ctime DATETIME not null COMMENT '添加时间',
-    utime DATETIME not null COMMENT '更新时间'
-)ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT '数据库实例表';
-
-CREATE TABLE logic_db (
-    id bigint(20) not null primary key,
-    name varchar(128) not null COMMENT '逻辑库名',
-    policy varchar(256) COMMENT '库拆分策略, {"db":["db1","db2"],"default":"db1","rule":[("^aa|bb|cc$","db1"),("func:fname","db1")]}',
-    ctime DATETIME not null COMMENT '添加时间',
-    utime DATETIME not null COMMENT '更新时间'
-)ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT '数据库分库';
-
-CREATE TABLE logic_table (
-    id bigint(20) not null primary key,
-    dbname varchar(128) not null COMMENT '逻辑库名',
-    tbname varchar(128) not null COMMENT '逻辑表名',
-    way varchar(16) not null default 'r' COMMENT '表拆分的方式: r(横向拆分)/c(纵向拆分)',
-    policy varchar(64) not null COMMENT '横向拆分策略: hash/month/week/day',
-    field varchar(64) default 'id' COMMENT '拆分策略的字段名，默认为id'
-    memo varchar(1024) COMMENT '扩展信息，横向拆分策略hash:{'count':10}',
-    ctime DATETIME not null COMMENT '添加时间',
-    utime DATETIME not null COMMENT '更新时间'
-)ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT '数据库分表';
-'''
 import time, datetime, os
 import types, random
 import threading
@@ -463,7 +429,7 @@ def with_mysql_reconnect(func):
                 x = func(self, *args, **argitems)
             except m.OperationalError as e:
                 log.warning(traceback.format_exc())
-                if e.args[0] in (2013,0) and self.trans == 0: # 连接断开错误
+                if e.args[0] >= 2000 and self.trans == 0: # 连接断开错误
                     close_mysql_conn(self)
                     self.connect()
                     trycount -= 1
@@ -473,7 +439,7 @@ def with_mysql_reconnect(func):
             except (m.InterfaceError, m.InternalError) as e:
                 # FIXME: 有时候InternalError错误不需要断开数据库连接，比如表不存在的错误
                 log.warning(traceback.format_exc())
-                if e.args[0] in (2013,0) and self.trans == 0: # 连接断开错误
+                if self.trans == 0: # 连接断开错误
                     close_mysql_conn(self)
                     self.connect()
                     trycount -= 1
