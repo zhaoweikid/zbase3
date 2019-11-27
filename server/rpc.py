@@ -178,6 +178,9 @@ class TCPServerHandler (object):
                 start = time.time()
                 try:
                     log.debug('call %s %s', p1.name, p1.params)
+                    f = getattr(self._handler, "_initial", None)
+                    if f:
+                        f()
                     f = getattr(self._handler, p1.name, None)
                     if not f:
                         log.warn('not found method '+p1.name)
@@ -186,10 +189,27 @@ class TCPServerHandler (object):
                         self.write_data(p2.dumps())
                         continue
 
-                    if isinstance(p1.params, dict):
-                        p2.retcode,p2.result = f(**p1.params)
-                    else:
-                        p2.retcode,p2.result = f(*p1.params)
+                    try:
+                        if isinstance(p1.params, dict):
+                            #p2.retcode,p2.result = f(**p1.params)
+                            ret = f(**p1.params)
+                        else:
+                            #p2.retcode,p2.result = f(*p1.params)
+                            ret = f(*p1.params)
+                        if isinstance(ret, (list,tuple)):
+                            p2.retcode,p2.result = ret
+                        else:
+                            p2.retcode = 0
+                            p2.result = ret
+                    except:
+                        p2.retcode = -1
+                        p2.result = 'internal error'
+                        log.info(traceback.format_exc())
+
+                    f = getattr(self._handler, "_finish", None)
+                    if f:
+                        f()
+
                 except Exception as e:
                     p2.retcode = ERR_EXCEPT
                     p2.result  = str(e)
@@ -407,13 +427,13 @@ class RPCClient:
 
             if self._proto == 'tcp':
                 addr = self._addr
-                log.debug('send:%s', s)
+                log.debug('send:%d %s', self._conn.fileno(), s[8:])
                 self._conn.sendall(s)
                 data = self._recvall()
                 log.debug('recv:%s', data)
             else:
                 addr = self._server['server']['addr']
-                log.debug('send:%s', s)
+                log.debug('send:%d %s', self._conn.fileno(), s[8:])
                 #self._conn.sendall(s)
                 self._conn.sendto(s, addr)
                 data, newaddr = self._conn.recvfrom(1000)

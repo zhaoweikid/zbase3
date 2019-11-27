@@ -5,6 +5,8 @@ from functools import partial
 
 def _json_default_trans(obj):
     '''json对处理不了的格式的处理方法'''
+    if isinstance(obj, bytes):
+        return obj.decode('utf-8')
     if isinstance(obj, datetime.datetime):
         return obj.strftime('%Y-%m-%d %H:%M:%S')
     if isinstance(obj, datetime.date):
