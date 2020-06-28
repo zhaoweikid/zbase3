@@ -14,6 +14,8 @@ dbpool = None
 settings = {
     # 是否格式化time结尾的字段为datetime类型
     'format_time': False,
+    # 是否将数字id转换为字符串
+    'id_tostr': False,
     # 日志级别 all/simple
     'log_level': 'all',
 }
@@ -165,7 +167,7 @@ class DBConnection:
             cur.execute(sql)
         res = cur.fetchall()
         cur.close()
-        res = [self.format_timestamp(r, cur) for r in res]
+        res = [self.format_data(r, cur) for r in res]
         #log.info('desc:', cur.description)
         if res and isdict:
             ret = []
@@ -187,7 +189,7 @@ class DBConnection:
         cur.execute(sql, param)
         res = cur.fetchone()
         cur.close()
-        res = self.format_timestamp(res, cur)
+        res = self.format_data(res, cur)
         if res and isdict:
             xkeys = [ i[0] for i in cur.description]
             one = dict(zip(xkeys, res))
@@ -387,23 +389,37 @@ class DBConnection:
     def escape(self, s):
         return s
 
-    def format_timestamp(self, ret, cur):
+    def format_data(self, ret, cur):
         '''将字段以_time结尾的格式化成datetime'''
-        global settings
-        if not settings.get('format_time'):
-            return ret
-
         if not ret:
             return ret
-        index = []
-        for d in cur.description:
-            if d[0].endswith('time'):
-                index.append(cur.description.index(d))
 
+        global settings
+        format_time = settings.get('format_time', False)
+        id_tostr = settings.get('id_tostr', False)
+
+        if not format_time and not id_tostr:
+            return ret
+
+        index_time = set() 
+        index_id = set()
+        des = cur.description
+        for i in range(0, len(des)):
+            k = des[i][0]
+            if format_time:
+                if (isinstance(format_time, (list,tuple)) and k in format_time) or \
+                    k.endswith('_time'):
+                    index_time.add(i)
+            if id_tostr:
+                if (isinstance(id_tostr, (list,tuple)) and k in id_tostr) or \
+                    k == 'id' or k.endswith('_id'):
+                    index_id.add(i)
         res = []
         for i , t in enumerate(ret):
-            if i in index and isinstance(t, int):
+            if i in index_time and isinstance(t, int):
                 res.append(datetime.datetime.fromtimestamp(t))
+            elif i in index_id:
+                res.append(str(t))
             else:
                 res.append(t)
         return res
