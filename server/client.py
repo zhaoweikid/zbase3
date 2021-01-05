@@ -1,5 +1,5 @@
 # coding: utf-8
-import time, random
+import time, random, os, sys
 import socket
 import traceback
 import logging
@@ -8,8 +8,8 @@ from thrift.transport import TTransport
 from thrift.protocol import TBinaryProtocol
 from zbase3.server import selector
 from zbase3.base.httpclient import Urllib2Client
-#from zbase.base import getconf
-#from zbase.web import cache
+#from qfcommon.base import getconf
+#from qfcommon.web import cache
 
 log = logging.getLogger()
 
@@ -294,7 +294,7 @@ def test_http():
         raw_input('go')
 
 
-def test():
+def test_simple():
     from thriftclient3.payprocessor import PayProcessor
     from zbase3.base import logger
     global log
@@ -319,24 +319,24 @@ def test():
         client = ThriftClient(sel, PayProcessor)
         client.ping()
 
-def test2():
-    from thriftclient3.encryptor import Encryptor
+def test_ping(port=1000):
+    from thriftclient3.spring import Spring
     from zbase3.base import logger
     global log
-    logger.install('stdout')
-    log = logger.log
+    log = logger.install('stdout')
+    
     log.debug('test ...')
     serverlist = [
-            {'addr':('127.0.0.1',4200), 'timeout':1000},
-            {'addr':('127.0.0.1',4201), 'timeout':1000},
+        {'addr':('127.0.0.1',port), 'timeout':1000},
+        #{'addr':('127.0.0.1',4201), 'timeout':1000},
     ]
     sel = selector.Selector(serverlist)
-    for i in range(0, 10):
-        client = ThriftClient(sel, Encryptor)
+    for i in range(0, 1000):
+        client = ThriftClient(sel, Spring, framed=True)
         client.ping()
 
 
-def test3():
+def test_selector():
     from thriftclient3.notifier import Notifier
     from zbase3.base import logger
     global log
@@ -357,7 +357,7 @@ def test3():
     ret = client.send_notify(json.dumps(notify))
     log.debug("send notify return:%s", ret)
 
-def test4():
+def test_name():
     from thriftclient3.payprocessor import PayProcessor
     from zbase3.base import logger
     global log
@@ -368,8 +368,18 @@ def test4():
         client = ThriftClient(server_name, PayProcessor)
         client.ping()
 
+
+def test_perf():
+    for i in range(0, 1000):
+        test_ping(7200)
+
+def test():
+    f = globals()[sys.argv[1]]
+    f()
+
 if __name__ == '__main__':
-    test3()
-    # test_http()
+    test()
+
+
 
 

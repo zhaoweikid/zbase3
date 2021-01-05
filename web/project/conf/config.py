@@ -10,6 +10,9 @@ HOST = '0.0.0.0'
 # 服务端口
 PORT = 6200
 
+# 协议
+PROTO = 'http'
+
 # 调试模式: True/False
 # 生产环境必须为False
 DEBUG = False

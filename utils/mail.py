@@ -1,7 +1,9 @@
 # coding: utf-8
 import os, sys, types
 import base64
+import socket
 import logging
+from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -19,11 +21,8 @@ class MailMessage:
 
         self.msg = MIMEMultipart()
         self.msg['From'] = fromaddr
-        #if type(subject) == types.UnicodeType:
-        #    self.msg['Subject'] = '=?UTF-8?B?%s?=' % (base64.b64encode(subject.encode('utf-8')))
-        #else:
-        #    self.msg['Subject'] = '=?UTF-8?B?%s?=' % (base64.b64encode(subject))
-        self.msg['Subject'] = '=?UTF-8?B?%s?=' % (base64.b64encode(subject.encode('utf-8')))
+        # self.msg['Subject'] = '=?UTF-8?B?%s?=' % (base64.b64encode(subject.encode('utf-8')))
+        self.msg['Subject'] = Header(subject, 'utf-8')
 
         if type(toaddr) in (tuple, list):
             self.msg['To'] = COMMASPACE.join(toaddr)
@@ -67,10 +66,10 @@ class MailSender:
         self.username   = username
         self.password   = password
 
-    def send(self, msg):
+    def send(self, msg, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
         '''实际发送邮件，msg为一个MailMessage对象'''
         try:
-            conn = smtplib.SMTP(self.smtpserver)
+            conn = smtplib.SMTP(self.smtpserver, timeout=timeout)
             #conn.set_debuglevel(1)
             conn.login(self.username, self.password)
             conn.sendmail(msg.mailfrom, msg.mailto, msg.tostring())
@@ -81,28 +80,28 @@ class MailSender:
             log.warn('mail to:%s send error! %s', str(msg.mailto), str(e))
             return False
 
-def sendmail(mailto, subject, content, files=None):
-    m = MailMessage(subject, 'receipt@test.net', mailto, content)
+def sendmail(mailto, subject, content, files=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
+    m = MailMessage(subject, 'receipt@xx.net', mailto, content)
 
     if files:
-        if type(files) in (types.TupleType, types.ListType):
+        if isinstance(files, (tuple, list)):
             for file in files:
                 m.append_file(file, 'application/octet-stream')
-        elif type(files) in (types.StringType, types.UnicodeType):
+        elif isinstance(files, str):
             m.append_file(files, 'application/octet-stream')
 
-    sender = MailSender('smtp.exmail.qq.com', 'receipt@test.net', 'QianFang%911')
-    return sender.send(m)
+    sender = MailSender('smtp.exmail.qq.com', 'receipt@xx.net', 'QianFang%911')
+    return sender.send(m, timeout=timeout)
 
 def sendmail_from(frominfo, mailto, subject, content, files=None):
     # mailfrom: {'smtp':xx,'from':xx,'password':xx}
     m = MailMessage(subject, frominfo['from'], mailto, content)
 
     if files:
-        if type(files) in (types.TupleType, types.ListType):
+        if isinstance(files, (tuple, list)):
             for file in files:
                 m.append_file(file, 'application/octet-stream')
-        elif type(files) in (types.StringType, types.UnicodeType):
+        elif isinstance(files, str):
             m.append_file(files, 'application/octet-stream')
 
     sender = MailSender(frominfo['smtp'], frominfo['from'], frominfo['password'])
@@ -123,7 +122,7 @@ def test():
     m.append_file('mail.py', 'text/plain')
     print(m.tostring())
 
-    sender = MailSender('smtp.exmail.qq.com', 'receipt@test.net', '')
+    sender = MailSender('smtp.exmail.qq.com', 'receipt@xx.net', '')
     sender.send(m)
 
 def test1():
@@ -137,13 +136,13 @@ def test1():
             'yuanyuejiang@test.com', 'haha', 'content test 222')
 
 def test_attachment():
-    m = MailMessage('test测试邮件', 'receipt@test.net', 'xiangwei@test.com', 'test content我们')
+    m = MailMessage('test测试邮件', 'receipt@xx.net', 'xiangwei@test.com', 'test content我们')
     f = open('mail.py', 'r')
     data = f.read()
     m.append_data(data, attachname='mail.py')
     print(m.tostring())
 
-    sender = MailSender('smtp.exmail.qq.com', 'receipt@test.net', '')
+    sender = MailSender('smtp.exmail.qq.com', 'receipt@xx.net', '')
     sender.send(m)
     f.close()
 

@@ -67,14 +67,14 @@ class MyFieldStorage (cgi.FieldStorage):
         self.file = self.make_file()
         todo = self.length
         if todo >= 0:
-            while todo > 0: 
+            while todo > 0:
                 data = self.fp.read(min(todo, self.bufsize)) # bytes
                 if not isinstance(data, bytes):
                     raise ValueError("%s should return bytes, got %s"
                                      % (self.fp, type(data).__name__))
                 self.bytes_read += len(data)
                 if not data:
-                    self.done = -1 
+                    self.done = -1
                     break
                 if self._binary_file:
                     self.file.write(data)
@@ -256,7 +256,9 @@ class Response(object):
         return len(self.content)
 
     def redirect(self, url):
-        url = url.encode(self.charset) if isinstance(url,unicode) else str(url)
+        if not isinstance(url, bytes):
+            url = url.encode(self.charset)
+        url = url.decode('iso-8859-1')
         self.status = 302
         self.headers['Location'] = url
 

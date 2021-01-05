@@ -45,7 +45,7 @@ class ThreadPool:
         self.isrunning = False
         log.info('wait stop threadpool ...')
         while self.queue.qsize() > 0:
-            time.sleep(1)
+            time.sleep(0.2)
 
         for t in self.threads:
             t.join()

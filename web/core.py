@@ -209,14 +209,13 @@ class WebApplication(object):
             times.append(time.time())
             if req.path.startswith(tuple(self.settings.STATICS.keys())):
                 fpath = self.document_root +  req.path
-                resp = NotFound('Not Found: ' + req.path)
+                resp = NotFound('Not Found: ' + fpath)
                 for k,v in self.settings.STATICS.items():
                     if req.path.startswith(k):
                         fpath = fpath.replace(k,v)
                         if os.path.isfile(fpath):
                             resp = self.static_file(req, fpath)
                         break
-
             else:
                 for regex, view, kwargs in self.urls:
                     match = regex.match(req.path)

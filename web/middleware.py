@@ -100,7 +100,7 @@ class GRAY:
             ],
         }
         '''
-        from zbase.base.ruler import RuleSet
+        from qfcommon.base.ruler import RuleSet
 
 
         input = self.viewobj.req.input().copy()
@@ -133,7 +133,7 @@ class GRAY:
 
     def after(self, viewobj, *args, **kwargs):
         try:
-            from zbase.base import getconf
+            from qfcommon.base import getconf
             global global_envs,global_envs_last_update
             self.viewobj = viewobj
 

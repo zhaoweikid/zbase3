@@ -10,6 +10,7 @@ class Selector:
         self.servers = []
         self.pos = 0
         self.policy = policy
+
         for item in serverlist:
             newitem = {}
             newitem['server'] = item

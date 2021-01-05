@@ -5,6 +5,8 @@ import types
 import logging
 import logging.config
 from logging import DEBUG, INFO, WARN, ERROR, FATAL, NOTSET
+import threading
+threading._main_thread.name = 'MT'
 
 LEVEL_COLOR = {
     DEBUG: '\33[2;39m',
@@ -42,7 +44,7 @@ def info(msg, *args, **kwargs):
 
 def warn(msg, *args, **kwargs):
     global log
-    log.warn(msg, *args, **kwargs)
+    log.warning(msg, *args, **kwargs)
 warning = warn
 
 def error(msg, *args, **kwargs):
@@ -72,7 +74,7 @@ def install(logdict, **options):
         'version': 1,
         'formatters': {
             'myformat': {
-                'format': '%(asctime)s %(process)d,%(threadName)s %(filename)s:%(lineno)d [%(levelname)s] %(message)s',
+                'format': '%(asctime)s %(process)d,%(threadName)s %(filename)s:%(lineno)d [%(levelname).1s] %(message)s',
             },  
         },  
         'handlers': {

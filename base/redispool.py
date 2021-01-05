@@ -32,7 +32,7 @@ def patch():
 
 @contextmanager
 def redis_lock(conn, key):
-    key = 'zbase.redis_lock.%s' % key
+    key = 'qfcommon.redis_lock.%s' % key
     value = str(int(time.time()))
     ret = False
     try:
