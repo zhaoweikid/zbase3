@@ -14,8 +14,6 @@ dbpool = None
 settings = {
     # 是否格式化time结尾的字段为datetime类型
     'format_time': False,
-    # 是否将数字id转换为字符串
-    'id_tostr': False,
     # 日志级别 all/simple
     'log_level': 'all',
 }

@@ -90,7 +90,7 @@ def sendmail(mailto, subject, content, files=None, timeout=socket._GLOBAL_DEFAUL
         elif isinstance(files, str):
             m.append_file(files, 'application/octet-stream')
 
-    sender = MailSender('smtp.exmail.qq.com', 'receipt@xx.net', 'QianFang%911')
+    sender = MailSender('smtp.exmail.qq.com', 'receipt@xx.net', '')
     return sender.send(m, timeout=timeout)
 
 def sendmail_from(frominfo, mailto, subject, content, files=None):
