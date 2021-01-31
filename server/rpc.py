@@ -63,6 +63,7 @@ class ReqProto (Protocol):
     def loads(body):
         if isinstance(body, bytes):
             body = body.decode('utf-8')
+        #log.debug('load:%s', body)
         version, msgtype, msgid, name, params = json.loads(body)
 
         p = ReqProto()

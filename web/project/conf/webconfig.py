@@ -8,14 +8,14 @@ HOME = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 URLS = None
 
 # 静态路径配置
-# 此转换主要用户url路径和文件本地路径有差异的情况
+# 此转换主要用于url路径和文件本地路径(DOCUMENT_ROOT)不一样的情况
 # 格式: {URL_PART: LOCAL_PATH}
 # 文件路径为：DOCUMENT_ROOT + URL_PATH.replace(URL_PART, LOCAL_PATH)
 # 如：http://127.0.0.1/s/test.html，通过以下默认的STATICS配置转换后,
 #     本地文件路径为：DOCUMENT_ROOT + /bin/static/test.html
 STATICS = {'/s/':'/bin/static/'}
 
-# 模板配置
+# 模板配置, 没有配置将不能使用mako服务器端模板引擎
 TEMPLATE = {
     'cache': True,
     'path': 'templates',

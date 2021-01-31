@@ -101,8 +101,11 @@ class WebApplication(object):
             MIDDLEWARE
         '''
         # 切换到字典static,兼容列表型
-        if isinstance(settings.STATICS, list) or isinstance(settings.STATICS, tuple):
-            settings.STATICS = dict(zip(settings.STATICS,settings.STATICS))
+        if hasattr(settings, 'STATICS'):
+            if isinstance(settings.STATICS, list) or isinstance(settings.STATICS, tuple):
+                settings.STATICS = dict(zip(settings.STATICS,settings.STATICS))
+        else:
+            settings.STATICS = {}
 
         self.allowed_methods = set(('GET', 'HEAD', 'POST', 'DELETE', 'PUT', 'OPTIONS'))
         self.charset = 'utf-8'
@@ -110,14 +113,15 @@ class WebApplication(object):
         self.settings = settings
         self.install()
 
+        self.document_root = getattr(settings, 'DOCUMENT_ROOT', '')
+        if not self.document_root:
+            if getattr(settings, 'HOME', ''):
+                self.document_root = os.path.join(settings.HOME, 'docroot')
+            else:
+                self.document_root = '/var/www'
 
-        if not self.settings.DOCUMENT_ROOT:
-            self.document_root = os.getcwd()
-        else:
-            self.document_root = self.settings.DOCUMENT_ROOT
-
-        self.debug = settings.DEBUG
-        self.charset = settings.CHARSET
+        self.debug = getattr(settings, 'DEBUG', False)
+        self.charset = getattr(settings, 'CHARSET', 'utf-8')
 
         self.reloader = None
         if self.debug:
@@ -126,7 +130,7 @@ class WebApplication(object):
 
     def add_urls(self, urls, appname=''):
         tmpurls = []
-        for item in urls.urls:
+        for item in urls:
             if type(item[1]) == str:
                 mod, cls = item[1].rsplit('.', 1)
                 mod = __import__(mod, None, None, [''])
@@ -150,18 +154,19 @@ class WebApplication(object):
         self.urls += tmpurls
 
     def install(self):
-        if self.settings.HOME not in sys.path:
+        if hasattr(self.settings, 'HOME') and self.settings.HOME not in sys.path:
             sys.path.insert(0, self.settings.HOME)
 
-        tplcf = self.settings.TEMPLATE
-        if tplcf['tmp'] and not os.path.isdir(tplcf['tmp']):
-            os.mkdir(tplcf['tmp'])
-        if tplcf['path']:
-            log.info('initial template')
-            template.install(tplcf['path'], tplcf['tmp'], tplcf['cache'],
-                             self.settings.CHARSET)
+        if hasattr(self.settings, 'TEMPLATE') and self.settings.TEMPLATE:
+            tplcf = self.settings.TEMPLATE
+            if tplcf['tmp'] and not os.path.isdir(tplcf['tmp']):
+                os.mkdir(tplcf['tmp'])
+            if tplcf['path']:
+                log.info('initial template')
+                template.install(tplcf['path'], tplcf['tmp'], tplcf['cache'],
+                                 self.settings.CHARSET)
 
-        if self.settings.DATABASE:
+        if hasattr(self.settings, 'DATABASE') and self.settings.DATABASE:
             log.info('initial database')
             dbpool.install(self.settings.DATABASE)
 
@@ -177,13 +182,16 @@ class WebApplication(object):
                     self.add_app(appname)
 
         log.info('initial url')
-        self.add_urls(self.settings.URLS)
+        if hasattr(self.settings.URLS, 'urls'):
+            self.add_urls(self.settings.URLS.urls)
+        else:
+            self.add_urls(self.settings.URLS)
 
     def run(self, host='0.0.0.0', port=8000):
         from gevent.wsgi import WSGIServer
 
         server = WSGIServer((host, port), self)
-        server.backlog = 512
+        server.backlog = 1024
         try:
             log.info("Server running on %s:%d" % (host, port))
             server.serve_forever()
@@ -239,13 +247,15 @@ class WebApplication(object):
                             viewobj.initial()
                             viewobj.allowed_methods = self.allowed_methods
 
-                            for x in self.settings.MIDDLEWARE:
-                                obj = x()
-                                resp = obj.before(viewobj, *args, **kwargs)
-                                if resp:
-                                    log.debug('middleware before:%s', resp)
-                                    break
-                                middleware.append(obj)
+
+                            if hasattr(self.settings, 'MIDDLEWARE'):
+                                for x in self.settings.MIDDLEWARE:
+                                    obj = x()
+                                    resp = obj.before(viewobj, *args, **kwargs)
+                                    if resp:
+                                        log.debug('middleware before:%s', resp)
+                                        break
+                                    middleware.append(obj)
 
                             ret = getattr(viewobj, req.method)(*args, **kwargs)
                             if ret:
@@ -279,18 +289,18 @@ class WebApplication(object):
         #s = '%s %s %s ' % (req.method, req.path, str(viewobj.__class__)[8:-2])
         s = [str(resp.status), req.method, req.path]
         s.append('%d' % ((times[-1]-times[0])*1000000))
-        s.append('%d' % ((times[1]-times[0])*1000000))
+        #s.append('%d' % ((times[1]-times[0])*1000000))
         s.append('%d' % ((times[-1]-times[-2])*1000000))
         try:
             if req.query_string:
-                s.append(req.query_string[:2048])
+                s.append(req.query_string[:1024])
             if req.method in ('POST', 'PUT'):
-                s.append(str(req.input())[:2048])
+                s.append(str(req.input())[:1024])
             if not req.input() and req.data:
-                s.append(str(req.data)[:2048])
+                s.append(str(req.data)[:1024])
             # if resp.content and resp.headers['Content-Type'].startswith('application/json'):
             if resp.content and resp.content[0] == 123 and resp.content[-1] == 125:  # json, start { end }
-                s.append(str(resp.content)[:4096])
+                s.append(str(resp.content)[:1024])
         except:
             log.error(traceback.format_exc())
         if not req.path.startswith(tuple(self.settings.STATICS.keys())):
