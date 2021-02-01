@@ -17,6 +17,7 @@ from zbase3.server.defines import *
 from zbase3.base import logger
 from zbase3.server.rpc import *
 from zbase3.server.rpcserver import recvall
+from zbase3.server import nameclient
 
 log = logging.getLogger()
 
@@ -99,7 +100,9 @@ class RPCClientBase:
 
         self._timeout = 1000 # 毫秒
 
-        self._server = server
+        self._server_name = ''
+        self._nc = None
+        self._server = None
         self._serverlist = None
 
         self._addr = None
@@ -108,6 +111,13 @@ class RPCClientBase:
             self._serverlist = balance.ServerList([server,], 'random')
         elif isinstance(server, list) or isinstance(server, tuple):
             self._serverlist = balance.ServerList(server, 'random')
+        elif isinstance(server, str): # namecenter
+            self._server_name = server
+            self._nc = NameClient()
+            realserver = self._nc.query(server)
+            if not realserver:
+                raise ValueError('namecenter query error with %s: %s' % (server, realserver))
+            self._serverlist = balance.ServerList(realserver, 'random')
         else: # 直接是ServerList
             self._serverlist = server
 
@@ -128,6 +138,12 @@ class RPCClientBase:
         self._close()
 
     def _select_server(self):
+        if self._server_name:
+            realserver = self.nc.query(server)
+            if not realserver:
+                raise ValueError('namecenter query error with %s: %s' % (server, realserver))
+            self._serverlist = balance.ServerList(realserver, 'random')
+
         self._server = self._serverlist.next()
         if not self._server:
             self._check_restore()

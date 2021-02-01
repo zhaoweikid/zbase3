@@ -28,8 +28,8 @@ if not handler:
 
 cores = multiprocessing.cpu_count()
 log.info('cpu cores: %d', cores)
-if config.MAX_PROC > cores:
-    log.warning('config.MAX_PROC(%d) > cpu cores(%d), please check', config.MAX_PROC, cores)
+if config.MAX_PROC > cores*2:
+    log.warning('config.MAX_PROC(%d) > cpu cores(%d*2), please check', config.MAX_PROC, cores)
 
 if config.WORK_MODE == 'gevent':
     server = rpcore.GeventServer(config, handler)

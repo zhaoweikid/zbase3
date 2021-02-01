@@ -9,6 +9,7 @@ if os.path.basename(HOME).isdigit():
 
 # 服务名称，也是服务目录名
 MYNAME = os.path.basename(HOME) 
+os.environ['MYNAME'] = MYNAME
 
 # 命名服务的地址
 NAME_CENTER = os.environ.get('NAMECENTER')

@@ -13,7 +13,9 @@ log = logging.getLogger()
 client = None
 
 class NameClient:
-    def __init__(self, cache_file, mode='random', cache_time=1):
+    def __init__(self, cache_file=None, mode='random', cache_time=60):
+        if not cache_file:
+            cache_file = '/tmp/nc-%s' % os.envrion.get('MYNAME', str(os.getpid()))
         self.c = None
         server = os.environ['NAMECENTER']
         self.servers = []
