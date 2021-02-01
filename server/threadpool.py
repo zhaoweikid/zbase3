@@ -106,6 +106,7 @@ class Task (object):
         self._kwargs = kwargs
 
         self._result  = None
+        self.ctime = time.time()
 
     def run(self):
         return self._func(self, *self._args, **self._kwargs)

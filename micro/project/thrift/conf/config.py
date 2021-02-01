@@ -8,13 +8,13 @@ if os.path.basename(HOME).isdigit():
     HOME = os.path.dirname(HOME)
 
 # 服务名称，也是服务目录名
-NAME = os.path.basename(HOME) 
+MYNAME = os.path.basename(HOME) 
 
 # 命名服务的地址
-QFNAME = os.environ.get('QFNAME')
+NAME_CENTER = os.environ.get('NAMECENTER')
 
 # IDC标识
-QFIDC  = os.environ.get('QFIDC')
+IDC  = os.environ.get('IDC')
 
 # 服务地址
 HOST = '0.0.0.0'
@@ -26,7 +26,7 @@ PORT = 7200
 PROTO = 'thrift'
 
 # 服务开启工作进程数
-MAX_PROC = 3
+MAX_PROC = 2
 
 # 单进程最大并发，多线程模式下为线程数
 MAX_CONN = 500

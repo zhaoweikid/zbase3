@@ -77,13 +77,26 @@ def call_handler(handlercls, data, addr, allow_noreply=True, vlog=True, dumphead
     ret = p2.dumps(dumpheader)
     return ret
 
-
-class TCPServerHandler:
+class ServerHandler:
     def __init__(self, handlercls):
         self._handlercls = handlercls
         self.reqs = 0
         self.max_req = 0
 
+    def check_req(self):
+        if self.max_req > 0 and self.reqs > self.max_req:
+            log.warning('request max, quit %d>%d', self.reqs, self.max_req)
+            if hasattr(self, 'stop'):
+                self.stop()
+            else:
+                os._exit(0)
+
+        self.reqs += 1
+ 
+    def handle(self, sock, addr):
+        pass
+
+class TCPServerHandler (ServerHandler):
     def handle(self, sock, addr):
         def read_data(n):
             ret = recvall(sock, n)
@@ -97,12 +110,7 @@ class TCPServerHandler:
             return sock.sendall(data)
 
         while True:
-            if self.max_req > 0 and self.reqs > self.max_req:
-                log.warning('request max, quit %d>%d', self.reqs, self.max_req)
-                if hasattr(self, 'stop'):
-                    self.stop()
-                #os._exit(0)
-                break
+            self.check_req()
 
             headstr = read_data(8)
             #log.debug('read head:%s', headstr)
@@ -115,7 +123,6 @@ class TCPServerHandler:
             if not data or len(data) != bodylen:
                 log.info('read rpc body error, body=%d read=%d', bodylen, len(data))
                 break
-            self.reqs += 1
 
             ret = call_handler(self._handlercls, data, addr, True, True)
             if ret:
@@ -129,22 +136,9 @@ class TCPServer (StreamServer, TCPServerHandler):
 
 
 
-class UDPServerHandler:
-    def __init__(self, handlercls):
-        self._handlercls = handlercls
-        self.reqs = 0
-        self.max_req = 0
-
+class UDPServerHandler (ServerHandler):
     def handle(self, data, addr):
-        if self.max_req > 0 and self.reqs > self.max_req:
-            log.warning('request max, quit %d>%d', self.reqs, self.max_req)
-            if hasattr(self, 'stop'):
-                self.stop()
-            else:
-                os._exit(0)
-            return
-
-        self.reqs += 1
+        self.check_req()
 
         ret = call_handler(self._handlercls, data[8:], addr, True, True)
         if ret:
@@ -177,11 +171,12 @@ class HTTPServer(WSGIServer):
 
 
 
-class BaseHandler:
+class Handler:
     def __init__(self, addr):
         self.addr = addr
 
     def ping(self, name=''):
+        '''服务状态检测'''
         return 0, {'now':str(datetime.datetime.now())[:19], 'data':'pong', 'name':name}
 
 
@@ -221,7 +216,7 @@ def test_server(port=7000):
     global log
     log = logger.install('stdout')
 
-    class MyHandler (BaseHandler):
+    class MyHandler (Handler):
         pass
 
     server = Server(port, MyHandler, proto='tcp,udp')
@@ -231,7 +226,7 @@ def test_http_server(port=7000):
     global log
     log = logger.install('stdout')
 
-    class MyHandler (BaseHandler):
+    class MyHandler (Handler):
         pass
     
     server = Server(port, MyHandler, proto='http')

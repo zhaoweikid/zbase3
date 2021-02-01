@@ -45,12 +45,13 @@ class BaseServer (object):
         self.handlercls = handler_class
         self.addr = addr
 
-        self.workers = set() # key:pid value:Process
+        self.workers = set() # pid
         self.running = True
         self.reqs = 0
         self.server_pid = os.getpid()
 
     def create_pipe(self):
+        '''给信号处理用的管道'''
         self.rfd, self.wfd = os.pipe()
         
         flags = fcntl.fcntl(self.rfd, fcntl.F_GETFL)
@@ -66,14 +67,17 @@ class BaseServer (object):
         pass
 
     def make_server(self):
+        '''创建主业务处理对象'''
         pass
 
 
     def start_worker(self):
+        '''运行子进程逻辑'''
         pass
 
 
     def create_worker(self):
+        '''创建子进程'''
         log.info('master %d fork one', os.getpid())
         pid = os.fork()
         if pid < 0:
@@ -92,6 +96,7 @@ class BaseServer (object):
             self.workers.add(pid)
 
     def start_master(self):
+        '''运行管理进程逻辑'''
         def signal_master_handler(signum, frame):
             log.warn("signal %d in master %d, wait for kill all worker", signum, os.getpid())
             self.SIG_QUEUE.append(signum)
@@ -111,23 +116,8 @@ class BaseServer (object):
         signal.signal(signal.SIGUSR1, signal_master_usr1_handler)
         signal.signal(signal.SIGCHLD, signal_child_handler)
 
-    def check_proc(self, ppid, pid):
-        fn = '/proc/%d/stat' % pid
-        if not os.path.isfile(fn):
-            return False
-
-        try:
-            with open(fn) as f:
-                line = f.readline()
-                p = line.split()
-                if int(p[3]) != ppid:
-                    return False
-        except:
-            return False
-
-        return True
-
     def wait_child(self, option=0):
+        '''回收结束的子进程'''
         try:
             pinfo = os.waitpid(-1, option)
             pid = pinfo[0]
@@ -141,6 +131,7 @@ class BaseServer (object):
 
 
     def apply_signal(self):
+        '''处理排队的信号'''
         while len(self.SIG_QUEUE) > 0:
             sig = self.SIG_QUEUE.pop(0)
             log.info('apply sig %d', sig)
@@ -159,6 +150,7 @@ class BaseServer (object):
 
 
     def forever(self):
+        '''主循环'''
         myid = os.getpid()
         if proctitle:
             setproctitle.setproctitle(proctitle + ' [Master]')
@@ -204,9 +196,11 @@ class BaseServer (object):
         log.warn('master exited')
 
     def stop(self):
+        '''停止所有服务'''
         self.running = False
 
     def stop_worker(self):
+        '''停止子进程'''
         pass
 
 
@@ -324,7 +318,6 @@ class BaseThreadServer (BaseServer):
                     self.tp.add(self.make_task(data, addr))
                 else:
                     raise ValueError('socket type not support: %s', self.sock.type.name)
-
             except KeyboardInterrupt:
                 break
             except Exception as e:

@@ -3,7 +3,8 @@ import os, sys
 import datetime, time
 from zbase3.base import logger
 from zbase3.server import rpcserver
-from zbase3.server.baseserver import BaseGeventServer, BaseThreadServer, Handler, MyTask
+from zbase3.server.baseserver import BaseGeventServer, BaseThreadServer, MyTask
+from zbase3.server.rpcserver import Handler
 from zbase3.base import dbpool
 from multiprocessing import Process
 import types
@@ -13,9 +14,9 @@ import logging
 log = logging.getLogger()
 
 class RPCHandler (Handler):
-    def ping(self):
-        '''检测服务存活'''
-        return 0, 'pong'
+    def test(self):
+        '''测试'''
+        return 0, 'testme'
 
     def interface(self):
         '''查询服务对外提供的所有接口及描述'''
@@ -49,8 +50,10 @@ class GeventServer (BaseGeventServer):
             return rpcserver.TCPServer(self.addr, self.handlercls, spawn=self.pool)
         elif self.conf.PROTO == 'rpc-udp':
             return rpcserver.UDPServer(self.addr, self.handlercls)
+        elif self.conf.PROTO == 'rpc-http':
+            return rpcserver.HTTPServer(self.addr, self.handlercls)
         else:
-            raise ValueError('config.PROTO error, must rpc-tcp/rpc-udp')
+            raise ValueError('config.PROTO error, must rpc-tcp/rpc-udp/rpc-http')
     
     def install(self):
         if hasattr(self.conf, 'DATABASE'):
@@ -90,10 +93,10 @@ class ThreadServer (BaseThreadServer):
         log.info('start threadserver ...')
 
     def make_server(self):
-        if self.conf.PROTO == 'tcp':
+        if self.conf.PROTO == 'rpc-tcp':
             self.server = MyTCPServerHandler(self)
             return self.make_tcp_server()
-        elif self.conf.PROTO == 'udp': 
+        elif self.conf.PROTO == 'rpc-udp': 
             self.server = MyUDPServerHandler(self)
             return self.make_udp_server()
         else:

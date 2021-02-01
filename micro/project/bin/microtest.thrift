@@ -1,4 +1,0 @@
-
-service Test {
-	string ping();
-}

@@ -8,13 +8,13 @@ if os.path.basename(HOME).isdigit():
     HOME = os.path.dirname(HOME)
 
 # 服务名称，也是服务目录名
-NAME = os.path.basename(HOME) 
+MYNAME = os.path.basename(HOME) 
 
 # 命名服务的地址
-QFNAME = os.environ.get('QFNAME')
+NAME_CENTER = os.environ.get('NAMECENTER')
 
 # IDC标识
-QFIDC  = os.environ.get('QFIDC')
+IDC  = os.environ.get('IDC')
 
 # 服务地址
 HOST = '0.0.0.0'
@@ -22,15 +22,15 @@ HOST = '0.0.0.0'
 # 服务端口
 PORT = 7200
 
-# 服务类型rpc-tcp/rpc-udp/rpc
-PROTO = 'rpc-tcp'
+# 服务类型rpc-tcp/rpc-udp/rpc-http/rpc
+PROTO = 'rpc-http'
 #PROTO = 'rpc-udp'
 
-# 服务运行模式 gevent/thread
+# 服务运行模式 gevent/thread，推荐使用gevent
 WORK_MODE = 'gevent'
 
 # 服务开启工作进程数
-MAX_PROC = 3
+MAX_PROC = 2
 
 # 单进程最大并发，多线程模式下为线程数
 MAX_CONN = 500
