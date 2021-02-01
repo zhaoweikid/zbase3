@@ -15,7 +15,7 @@ client = None
 class NameClient:
     def __init__(self, cache_file, mode='random', cache_time=1):
         self.c = None
-        server = os.environ['QFNAME']
+        server = os.environ['NAMECENTER']
         self.servers = []
         self.mode = mode
         self.cache_time = cache_time
