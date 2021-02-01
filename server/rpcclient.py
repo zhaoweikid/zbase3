@@ -278,7 +278,6 @@ class TCPClient (RPCClientBase):
             raise
 
 
-Client = TCPClient
 
 class UDPClient (RPCClientBase):
     def __init__(self, server):
@@ -327,28 +326,14 @@ class HTTPClient (RPCClientBase):
             return resp.content 
         raise ValueError('request error! code:%d' % resp.status_code)
 
-def test_server(port=7000):
-    global log
-    log = logger.install('stdout')
-    class MyHandler (BaseHandler):
-        def ping(self):
-            log.debug('ping')
-            return 0, 'pong'
 
-    server = Server(port, MyHandler, proto='tcp,udp')
-    server.start()
-
-def test_http_server(port=7000):
-    global log
-    log = logger.install('stdout')
-    class MyHandler (BaseHandler):
-        def ping(self):
-            log.debug('ping')
-            return 0, 'pong'
-
-    server = Server(port, MyHandler, proto='http')
-    server.start()
-
+def Client(addr, proto='tcp'):
+    if proto == 'udp':
+        return UDPClient(addr)
+    elif proto == 'http':
+        return HTTPClient(addr)
+    else:
+        return TCPClient(addr)
 
 def test_client(port=7000):
     global log
