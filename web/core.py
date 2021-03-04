@@ -173,7 +173,7 @@ class WebApplication(object):
         self.urls = []
         if hasattr(self.settings, 'APP_PATH'):
             log.debug('APP_PATH: %s', self.settings.APP_PATH)
-            if self.settings.APP_PATH:
+            if self.settings.APP_PATH and os.path.isdir(self.settings.APP_PATH):
                 apps = os.listdir(self.settings.APP_PATH)
                 sys.path.append(self.settings.APP_PATH)
                 for appname in apps:
@@ -202,7 +202,7 @@ class WebApplication(object):
     def add_app(self, appname):
         log.info('add app:%s', appname)
         m = __import__(appname)
-        self.add_urls(m, appname)
+        self.add_urls(m.urls, appname)
 
     def __call__(self, environ, start_response):
         times = [time.time()]
