@@ -19,52 +19,62 @@ class APIHandler (Handler):
 
     def initial(self):
         self.set_headers({'Content-Type': 'application/json; charset=UTF-8'})
-        name = self.req.path.split('/')[-1]
 
-        sid = self.get_cookie('sid')
-        log.debug('sid: %s', sid)
-        self.ses = None
-        if self.session_conf:
-            self.ses = session.create(self.session_conf, sid)
+        # not need session
+        if not self.session_conf:
+            return
+
+        name = self.req.path.split('/')[-1]
 
         # name: _xxxx means private method, only called in LAN , 
         #       xxxx_ means not need check session
-        if name.endswith('_'):
-            #log.debug('no check session 1')
-            return
-
-        if isinstance(self.session_nocheck, dict):
-            noses_method = self.session_nocheck.get(self.req.path)
-            if noses_method and (noses_method == '*' or noses_method == self.req.method):
-                #log.debug('no check session 2')
-                return
-        elif isinstance(self.session_nocheck, (list,tuple)):
-            if self.req.path in self.session_nocheck:
-                #log.debug('no check session 3')
-                return
-
+        # 仅允许内网访问
         if name.startswith('_'): # private
             c = self.req.clientip()
             log.debug('clientip:%s', c)
             if not c.startswith(('192.168.', '10.', '127.')):
                 self.resp = Response(status=403)
-                raise HandlerFinish
+                raise HandlerFinish(403, 'client error')
+        # 无session
+        if name.endswith('_'):
+            #log.debug('no check session 1')
+            return
+        
+        sid = self.get_cookie('sid')
+        log.debug('sid: %s', sid)
+        #self.ses = None
+        self.ses = session.create(self.session_conf, sid)
+
+        # 不需要检查session的url。字典形式可以指定http方法。
+        # 如:{'/v1/test':'GET', '/v1/test2':('GET','POST')}
+        if isinstance(self.session_nocheck, dict):
+            noses_method = self.session_nocheck.get(self.req.path)
+            if isinstance(noses_method, str):
+                if noses_method and (noses_method == '*' or noses_method == self.req.method):
+                    return
+            elif isinstance(noses_method, (list,tuple,set)):
+                if self.req.method in noses_method:
+                    return
+        elif isinstance(self.session_nocheck, (list,tuple)):
+            if self.req.path in self.session_nocheck:
+                #log.debug('no check session 3')
+                return
 
         # check session
         if not sid:
             log.info('not found sid')
             self.resp = Response('403 sesson error 1', status=403)
-            raise HandlerFinish
+            raise HandlerFinish(403, 'session error 1')
 
         if not self.ses:
             log.info('session %s no obj', sid)
             self.resp = Response('403 session error 2', status=403)
-            raise HandlerFinish
+            raise HandlerFinish(403, 'session error 2')
 
         if not self.ses.data:
             log.info('session %s no data', sid)
             self.resp = Response('403 session error 3', status=403)
-            raise HandlerFinish
+            raise HandlerFinish(403, 'session error 3')
 
         
     def finish(self):
@@ -72,14 +82,12 @@ class APIHandler (Handler):
         if self.ses and self.ses.auto_save():
             self.set_cookie('sid', self.ses.sid)
 
-
-    def create_session(self):
-        self.ses = session.create(self.session_conf)
-        return self.ses
-
-
     def GET(self, name):
         '''自动根据url的正则分组的名字匹配函数名。返回是一个值即为成功，两个值就是失败'''
+        name_not_used = ['initial','finish','succ','fail']
+        if name in name_not_used:
+            self.resp.result(406)
+            return
         func = getattr(self, name, None)
         if func:
             ret = func()

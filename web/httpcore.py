@@ -242,6 +242,13 @@ class Response(object):
         kwargs['expires'] = 0
         self.set_cookie(key, '', **kwargs)
 
+    def result(self, code, data=''):
+        self.status = code
+        if code >= 400 and not data:
+            self.write(HTTP_STATUS_CODES[code])
+        else:
+            self.write(data)
+
     def write(self, data):
         #if type(data) == types.UnicodeType:
         #    self.content += data.encode(self.charset)

@@ -18,7 +18,12 @@ if os.path.exists(error_page_path):
         error_page_content = f.read()
 
 class HandlerFinish(Exception):
-    pass
+    def __init__(self, code, value):
+        self.code = code
+        self.value = value
+    
+    def __str__(self):
+        return 'HandlerFinish: %d %s' % (code, self.value)
 
 class Handler(object):
     def __init__(self, app, req):
@@ -216,6 +221,7 @@ class WebApplication(object):
             req = Request(environ)
             times.append(time.time())
             if req.path.startswith(tuple(self.settings.STATICS.keys())):
+                # 静态文件
                 fpath = self.document_root +  req.path
                 resp = NotFound('Not Found: ' + fpath)
                 for k,v in self.settings.STATICS.items():
@@ -225,6 +231,7 @@ class WebApplication(object):
                             resp = self.static_file(req, fpath)
                         break
             else:
+                # 匹配url
                 for regex, view, kwargs in self.urls:
                     match = regex.match(req.path)
                     if match is not None:
@@ -247,7 +254,6 @@ class WebApplication(object):
                             viewobj.initial()
                             viewobj.allowed_methods = self.allowed_methods
 
-
                             if hasattr(self.settings, 'MIDDLEWARE'):
                                 for x in self.settings.MIDDLEWARE:
                                     obj = x()
@@ -263,16 +269,17 @@ class WebApplication(object):
                                     viewobj.resp.write(ret)
                                 elif isinstance(ret, Response):
                                     viewobj.resp = ret
+
+                            for obj in middleware:
+                                resp = obj.after(viewobj)
+                                log.debug('middleware after:%s', resp)
+
                             viewobj.finish()
 
-                        except HandlerFinish:
-                            pass
-
+                        except HandlerFinish as e:
+                            if not viewobj.resp.content:
+                                viewobj.resp.result(e.code, e.value)
                         resp = viewobj.resp
-
-                        for obj in middleware:
-                            resp = obj.after(viewobj)
-                            log.debug('middleware after:%s', resp)
                         break
                 else:
                     resp = NotFound('Not Found')

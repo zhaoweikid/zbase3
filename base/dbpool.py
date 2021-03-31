@@ -141,6 +141,9 @@ class DBConnection:
     def cursor(self):
         return self.conn.cursor()
 
+    def fields(self):
+        pass
+
     @timeit
     def execute(self, sql, param=None):
         #log.info('exec:%s', sql)
@@ -374,6 +377,18 @@ class DBConnection:
     def select_page(self, sql, pagecur=1, pagesize=20, count_sql=None, maxid=-1):
         return pager.db_pager(self, sql, pagecur, pagesize, count_sql, maxid)
 
+    def select_page_simple(self, tb, page=1, pagesize=20, where=None, fields='*', other=None, 
+            count_sql=None, maxid=-1):
+        sql = self.select_sql(tb, where, fields, other)
+        p = self.select_page(sql, page, pagesize, count_sql, maxid)
+        ret = {}
+        ret['page'] = p.page
+        ret['pagesize'] = p.page_size
+        ret['pagenum'] = p.pages
+        ret['data'] = p.pagedata.data 
+
+        return ret
+
     def last_insert_id(self):
         pass
 
@@ -543,6 +558,14 @@ class MySQLConnection (DBConnection):
     @with_mysql_reconnect
     def get(self, sql, param=None, isdict=True):
         return DBConnection.get(self, sql, param, isdict)
+
+    def fields(self, tb):
+        ret = self.query("desc %s;" % tb, isdict=False)
+        return [x[0] for x in ret]
+
+    def tables(self):
+        ret = self.query("show tables;", isdict=False)
+        return [x[0] for x in ret]
 
     def escape(self, s, enc='utf-8'):
         #if type(s) == types.UnicodeType:
