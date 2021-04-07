@@ -215,8 +215,8 @@ class DBConnection:
             v = v.decode(charset)
 
         if isinstance(v, str):
-            if v.startswith(('now()','md5(')):
-                return v
+            #if v.startswith(('now()','md5(')):
+            #    return v
             return "'%s'" % self.escape(v)
         elif isinstance(v, datetime.datetime) or isinstance(v, datetime.date):
             return "'%s'" % str(v)
@@ -228,7 +228,7 @@ class DBConnection:
             return str(v)
 
     def exp2sql(self, key, op, value):
-        item = '(`%s` %s ' % (key.strip('`').replace('.','`.`'), op)
+        item = '(`%s` %s ' % (self.value2sql(key.strip('`').replace('.','`.`')), op)
         if op == 'in':
             item += '(%s))' % ','.join([self.value2sql(x) for x in value])
         elif op == 'not in':
@@ -246,13 +246,15 @@ class DBConnection:
             if isinstance(v, tuple):
                 x.append('%s' % self.exp2sql(k, v[0], v[1]))
             else:
-                x.append('`%s`=%s' % (k.strip(' `').replace('.','`.`'), self.value2sql(v)))
+                x.append('`%s`=%s' % (self.value2sql(k.strip(' `').replace('.','`.`')), 
+                    self.value2sql(v)))
         return sp.join(x)
 
     def dict2on(self, d, sp=' and '):
         x = []
         for k,v in d.items():
-            x.append('`%s`=`%s`' % (k.strip(' `').replace('.','`.`'), v.strip(' `').replace('.','`.`')))
+            x.append('`%s`=`%s`' % (self.value2sql(k.strip(' `').replace('.','`.`')), 
+                v.strip(' `').replace('.','`.`')))
         return sp.join(x)
 
     def dict2insert(self, d):
@@ -261,7 +263,7 @@ class DBConnection:
         vals = []
         for k in keys:
             vals.append('%s' % self.value2sql(d[k]))
-        new_keys = ['`' + k.strip('`') + '`' for k in keys]
+        new_keys = ['`' + self.value2sql(k.strip('`')) + '`' for k in keys]
         return ','.join(new_keys), ','.join(vals)
 
     def fields2where(self, fields, where=None):
