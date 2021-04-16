@@ -9,7 +9,9 @@ from logging import DEBUG, INFO, WARN, ERROR, FATAL, NOTSET
 from stat import ST_DEV, ST_INO, ST_MTIME
 import time
 import threading
-threading._main_thread.name = 'MT'
+    
+#threading._main_thread.name = 'MT'
+threading.current_thread().setName('MT')
 
 LEVEL_COLOR = {
     DEBUG: '\33[2;39m',
@@ -41,7 +43,7 @@ class MyTimedRotatingHandler (TimedRotatingFileHandler):
     def __init__(self, filename, when='h', interval=1, backupCount=0,
                  encoding=None, delay=False, utc=False, atTime=None,
                  errors=None):
-        TimedRotatingFileHandler.__init__(self, filename, when, interval, backupCount, encoding, delay, utc, atTime)
+        TimedRotatingFileHandler.__init__(self, filename, when, interval, backupCount, encoding, delay, utc)
 
         self.dev, self.ino = -1, -1
         self._check_time = 0
@@ -86,12 +88,17 @@ class MyTimedRotatingHandler (TimedRotatingFileHandler):
                 else:
                     addend = -3600
                 timeTuple = time.localtime(t + addend)
-        dfn = self.rotation_filename(self.baseFilename + "." +
+        dfn = self.baseFilename + "." + time.strftime(self.suffix, timeTuple)
+        if hasattr(self, 'rotation_filename'):
+            dfn = self.rotation_filename(self.baseFilename + "." +
                                      time.strftime(self.suffix, timeTuple))
         if not os.path.exists(dfn):
             #os.remove(dfn)
             try:
-                self.rotate(self.baseFilename, dfn)
+                if hasattr(self, 'rotate'):
+                    self.rotate(self.baseFilename, dfn)
+                else:
+                    os.rename(self.baseFilename, dfn)
             except:
                 pass
             else:
@@ -101,9 +108,12 @@ class MyTimedRotatingHandler (TimedRotatingFileHandler):
                             os.remove(s)
                         except:
                             pass
-        if not self.delay:
-            self.stream = self._open()
-            self._statstream()
+        #if not self.delay:
+        #    self.stream = self._open()
+        #    self._statstream()
+        self.stream = self._open()
+        self._statstream()
+
         newRolloverAt = self.computeRollover(currentTime)
         while newRolloverAt <= currentTime:
             newRolloverAt = newRolloverAt + self.interval
