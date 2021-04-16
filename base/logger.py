@@ -261,8 +261,9 @@ def install(logdict, **options):
             if filename == 'stdout': 
                 cf['handlers'].append('console')
             else:
-                conf['handlers']['file-'+filename] = create_log_conf(options, filename)
-                cf['handlers'] = ['file'+filename]
+                name = 'file-'+filename
+                conf['handlers'][name] = create_log_conf(options, filename)
+                cf['handlers'] = [name]
         else:
             for level,fname in filename.items():
                 name = 'file-'+fname
@@ -342,7 +343,7 @@ def test_mlogger():
     for i in range(0, 10):
         log1.debug('debug ... %d', i)
         log1.info('info ... %d', i)
-        log1.warn('warn ... %d', i)
+        log1.warning('warn ... %d', i)
         log1.error('error ... %d', i)
         log1.fatal('fatal ... %d', i)
 
@@ -350,7 +351,7 @@ def test_mlogger():
     for i in range(0, 10):
         log2.debug('debug ... %d', i)
         log2.info('info ... %d', i)
-        log2.warn('warn ... %d', i)
+        log2.warning('warn ... %d', i)
         log2.error('error ... %d', i)
         log2.fatal('fatal ... %d', i)
 
@@ -361,7 +362,7 @@ def test_base():
     for i in range(0, 10):
         log.debug('debug ... %d', i)
         log.info('info ... %d', i)
-        log.warn('warn ... %d', i)
+        log.warning('warn ... %d', i)
         log.error('error ... %d', i)
         log.fatal('fatal ... %d', i)
 
@@ -373,7 +374,7 @@ def test_root():
     for i in range(0, 10):
         log.debug('debug ... %d', i)
         log.info('info ... %d', i)
-        log.warn('warn ... %d', i)
+        log.warning('warn ... %d', i)
         log.error('error ... %d', i)
         log.fatal('fatal ... %d', i)
         time.sleep(1)
@@ -385,7 +386,7 @@ def test_simple():
     for i in range(0, 10):
         log.debug('debug ... %d', i)
         log.info('info ... %d', i)
-        log.warn('warn ... %d', i)
+        log.warning('warn ... %d', i)
         log.error('error ... %d', i)
         log.fatal('fatal ... %d', i)
 
@@ -396,7 +397,7 @@ def test_simple_file():
     for i in range(0, 10):
         log.debug('debug ... %d', i)
         log.info('info ... %d', i)
-        log.warn('warn ... %d', i)
+        log.warning('warn ... %d', i)
         log.error('error ... %d', i)
         log.fatal('fatal ... %d', i)
 
@@ -408,19 +409,19 @@ def test_simple_mfile():
     for i in range(0, 10):
         log.debug('debug ... %d', i)
         log.info('info ... %d', i)
-        log.warn('warn ... %d', i)
+        log.warning('warn ... %d', i)
         log.error('error ... %d', i)
         log.fatal('fatal ... %d', i)
 
 def test_simple_file_ro():
-    simple_install('test.log')
+    simple_install('test.log', when='M', backupCount=3)
 
     log = logging.getLogger()
     i = 0
     while True:
         log.debug('debug ... %d', i)
         log.info('info ... %d', i)
-        log.warn('warn ... %d', i)
+        log.warning('warn ... %d', i)
         log.error('error ... %d', i)
         log.fatal('fatal ... %d', i)
         i += 1
@@ -436,7 +437,7 @@ def test_proc_file_ro():
         while True:
             log.debug('debug ... %d', i)
             log.info('info ... %d', i)
-            log.warn('warn ... %d', i)
+            log.warning('warn ... %d', i)
             log.error('error ... %d', i)
             log.fatal('fatal ... %d', i)
             i += 1
@@ -453,7 +454,12 @@ def test_proc_file_ro():
         dolog()
 
 def test():
-    globals()[sys.argv[1]]()
+    if len(sys.argv) == 1:
+        for x in globals():
+            if x.startswith('test_'):
+                print(x)
+    else:
+        globals()[sys.argv[1]]()
 
 if __name__ == '__main__':
     test()
