@@ -220,22 +220,24 @@ class WebApplication(object):
                     self.install()
             req = Request(environ)
             times.append(time.time())
-            path = req.path
+            rpath = req.path
 
-            if path.startswith(tuple(self.settings.STATICS.keys())):
+            if rpath.startswith(tuple(self.settings.STATICS.keys())):
                 # 静态文件
-                fpath = self.document_root +  path
+                fpath = self.document_root +  rpath
                 resp = NotFound('Not Found: ' + fpath)
                 for k,v in self.settings.STATICS.items():
-                    if path.startswith(k):
+                    if rpath.startswith(k):
                         fpath = fpath.replace(k,v)
                         if os.path.isfile(fpath):
                             resp = self.static_file(req, fpath)
+                        else:
+                            resp = NotFound('Not Found: ' + fpath)
                         break
             else:
                 # 匹配url
                 for regex, view, kwargs in self.urls:
-                    match = regex.match(path)
+                    match = regex.match(rpath)
                     if match is not None:
                         if req.method not in self.allowed_methods:
                             raise NotImplemented
@@ -248,7 +250,6 @@ class WebApplication(object):
                         #log.debug('url match:%s %s', args, kwargs)
 
                         times.append(time.time())
-
                         viewobj = view(self, req)
 
                         middleware = []
@@ -296,7 +297,7 @@ class WebApplication(object):
 
         times.append(time.time())
         #s = '%s %s %s ' % (req.method, req.path, str(viewobj.__class__)[8:-2])
-        s = [str(resp.status), req.method, path]
+        s = [str(resp.status), req.method, rpath]
         s.append('%d' % ((times[-1]-times[0])*1000000))
         #s.append('%d' % ((times[1]-times[0])*1000000))
         s.append('%d' % ((times[-1]-times[-2])*1000000))
@@ -312,7 +313,7 @@ class WebApplication(object):
                 s.append(str(resp.content)[:1024])
         except:
             log.error(traceback.format_exc())
-        if not path.startswith(tuple(self.settings.STATICS.keys())):
+        if not rpath.startswith(tuple(self.settings.STATICS.keys())):
             log.warn('|'.join(s))
 
         return resp(environ, start_response)
