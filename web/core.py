@@ -132,7 +132,6 @@ class WebApplication(object):
         if self.debug:
             self.reloader = reloader.Reloader()
        
-        self.path_map_keys = [ x[0] for x in getattr(settings, 'PATH_MAP', []) ]
 
     def add_urls(self, urls, appname=''):
         tmpurls = []

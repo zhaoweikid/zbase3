@@ -15,11 +15,6 @@ URLS = None
 #     本地文件路径为：DOCUMENT_ROOT + /bin/static/test.html
 STATICS = {'/s/':'/bin/static/'}
 
-# url路径映射，将一个url映射为另一个，或者是转发到后端服务
-#PATH_MAP = [('/a/','/b'), ('/aaa','http://127.0.0.1:8080')]
-PATH_MAP = []
-
-
 # 模板配置
 TEMPLATE = {
     'cache': False,
