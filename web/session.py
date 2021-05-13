@@ -216,7 +216,10 @@ class SessionFile (Session):
             #log.debug('remove ses: %s', self.filename)
             os.remove(self.filename)
 
-
+class SessionMemory (Session):
+    def __init__(self, expire=3600):
+        Session.__init__(self, sid)
+        
 
 def create(cfg, sid=None):
     conf = copy.copy(cfg)

@@ -191,7 +191,7 @@ def with_validator(fields):
                     self.resp.status = 400
                     self.resp.write('input error: '+','.join(ret))
                 #raise ValidatorError('input error:'+ str(ret))
-                raise HandlerFinish('validator error:'+ str(ret))
+                raise HandlerFinish(400, 'validator error:'+ str(ret))
             return func(self, *args, **kwargs)
         return _
     return f
@@ -216,7 +216,7 @@ def with_validator_self(func):
                 self.resp.status = 400
                 self.resp.write('input error')
             #raise ValidatorError('input error:'+ str(ret))
-            raise HandlerFinish('validator error:'+ str(ret))
+            raise HandlerFinish(400, 'validator error:'+ str(ret))
         return func(self, *args, **kwargs)
     return _
 

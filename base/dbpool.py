@@ -141,6 +141,9 @@ class DBConnection:
     def cursor(self):
         return self.conn.cursor()
 
+    def fields(self):
+        pass
+
     @timeit
     def execute(self, sql, param=None):
         #log.info('exec:%s', sql)
@@ -212,8 +215,8 @@ class DBConnection:
             v = v.decode(charset)
 
         if isinstance(v, str):
-            if v.startswith(('now()','md5(')):
-                return v
+            #if v.startswith(('now()','md5(')):
+            #    return v
             return "'%s'" % self.escape(v)
         elif isinstance(v, datetime.datetime) or isinstance(v, datetime.date):
             return "'%s'" % str(v)
@@ -225,7 +228,7 @@ class DBConnection:
             return str(v)
 
     def exp2sql(self, key, op, value):
-        item = '(`%s` %s ' % (key.strip('`').replace('.','`.`'), op)
+        item = '(`%s` %s ' % (self.value2sql(key.strip('`').replace('.','`.`')), op)
         if op == 'in':
             item += '(%s))' % ','.join([self.value2sql(x) for x in value])
         elif op == 'not in':
@@ -243,13 +246,15 @@ class DBConnection:
             if isinstance(v, tuple):
                 x.append('%s' % self.exp2sql(k, v[0], v[1]))
             else:
-                x.append('`%s`=%s' % (k.strip(' `').replace('.','`.`'), self.value2sql(v)))
+                x.append('`%s`=%s' % (self.value2sql(k.strip(' `').replace('.','`.`')), 
+                    self.value2sql(v)))
         return sp.join(x)
 
     def dict2on(self, d, sp=' and '):
         x = []
         for k,v in d.items():
-            x.append('`%s`=`%s`' % (k.strip(' `').replace('.','`.`'), v.strip(' `').replace('.','`.`')))
+            x.append('`%s`=`%s`' % (self.value2sql(k.strip(' `').replace('.','`.`')), 
+                v.strip(' `').replace('.','`.`')))
         return sp.join(x)
 
     def dict2insert(self, d):
@@ -258,7 +263,7 @@ class DBConnection:
         vals = []
         for k in keys:
             vals.append('%s' % self.value2sql(d[k]))
-        new_keys = ['`' + k.strip('`') + '`' for k in keys]
+        new_keys = ['`' + self.value2sql(k.strip('`')) + '`' for k in keys]
         return ','.join(new_keys), ','.join(vals)
 
     def fields2where(self, fields, where=None):
@@ -373,6 +378,18 @@ class DBConnection:
 
     def select_page(self, sql, pagecur=1, pagesize=20, count_sql=None, maxid=-1):
         return pager.db_pager(self, sql, pagecur, pagesize, count_sql, maxid)
+
+    def select_page_simple(self, tb, page=1, pagesize=20, where=None, fields='*', other=None, 
+            count_sql=None, maxid=-1):
+        sql = self.select_sql(tb, where, fields, other)
+        p = self.select_page(sql, page, pagesize, count_sql, maxid)
+        ret = {}
+        ret['page'] = p.page
+        ret['pagesize'] = p.page_size
+        ret['pagenum'] = p.pages
+        ret['data'] = p.pagedata.data 
+
+        return ret
 
     def last_insert_id(self):
         pass
@@ -543,6 +560,14 @@ class MySQLConnection (DBConnection):
     @with_mysql_reconnect
     def get(self, sql, param=None, isdict=True):
         return DBConnection.get(self, sql, param, isdict)
+
+    def fields(self, tb):
+        ret = self.query("desc %s;" % tb, isdict=False)
+        return [x[0] for x in ret]
+
+    def tables(self):
+        ret = self.query("show tables;", isdict=False)
+        return [x[0] for x in ret]
 
     def escape(self, s, enc='utf-8'):
         #if type(s) == types.UnicodeType:
