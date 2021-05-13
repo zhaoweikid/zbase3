@@ -159,7 +159,7 @@ class Request(object):
             return addr[0]
         return self.environ['REMOTE_ADDR']
 
-    def input(self):
+    def input(self, jsondata=False):
         if self._input:
             return self._input
         data = self._parse_query_string()
@@ -170,6 +170,9 @@ class Request(object):
                 else:
                     data[k.name] = k.value
         self._input = data
+        if jsondata:
+            obj = json.loads(self.storage.value)
+            self._input.update(obj)
         return self._input
 
     def postdata(self):
