@@ -17,14 +17,16 @@ T_MOBILE    = 64
 T_DATE      = 128
 T_DATETIME  = 256
 T_TIMESTAMP = 512
+T_PASSWORD  = 1024
 
 TYPE_MAP = {
     T_MAIL: re.compile("^[a-zA-Z0-9_\-\'\.]+@[a-zA-Z0-9_]+(\.[a-z]+){1,2}$"),
     T_IP: re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}$"),
-    T_MOBILE: re.compile("^1[3578][0-9]{9}$"),
+    T_MOBILE: re.compile("^1[0-9]{10}$"),
     T_DATE: re.compile("^2[0-9]{3}(\-|/)[0-9]{2}(\-|/)[0-9]{2}$"),
     T_DATETIME: re.compile("^2[0-9]{3}(\-|/)[0-9]{2}(\-|/)[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$"),
-    T_TIMESTAMP: re.compile("^[0-9]{1,10}$")
+    T_TIMESTAMP: re.compile("^[0-9]{1,10}$"),
+    T_PASSWORD: re.compile("^(?![0-9]+$)(?![a-zA-Z]+$)[0-9A-Za-z\:\;\<\>\,\.\?\/\~\!\@\#\$\%\^\&\*\(\)\-\_\+\=]{6,20}$"),
 }
 
 opmap = {'eq':'=',
@@ -150,7 +152,10 @@ class Validator:
                     f.value = self._check_item(f, v)
                     if f.value is None:
                         result.append(f.name)
-                self.data[f.name] = f.value
+                if val[0] == '=':
+                    self.data[f.name] = f.value
+                else:
+                    self.data[f.name] = (val[0], f.value)
             except ValidatorError:
                 result.append(f.name)
                 log.warn(traceback.format_exc())
@@ -178,7 +183,7 @@ def with_validator(fields):
             if hasattr(self, 'input'):
                 ret = vdt.verify(self.input())
             else:
-                ret = vdt.verify(self.req.input())
+                ret = vdt.verify(self.req.input(True))
             
             self.data = self.validator.data
             

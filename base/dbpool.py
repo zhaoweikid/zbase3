@@ -4,6 +4,7 @@ import types, random
 import threading
 import logging
 import copy
+import re
 import traceback
 from zbase3.base import pager
 from contextlib import contextmanager
@@ -17,6 +18,8 @@ settings = {
     # 日志级别 all/simple
     'log_level': 'all',
 }
+
+KEY_CP = re.compile('["\'\-\\\*\#,;\/\=\<\>` ]+')
 
 def timeit(func):
     def _(*args, **kwargs):
@@ -227,8 +230,12 @@ class DBConnection:
                 return 'NULL'
             return str(v)
 
+    def key2sql(self, v):
+        return re.sub(KEY_CP, '', v)
+
     def exp2sql(self, key, op, value):
-        item = '(`%s` %s ' % (self.value2sql(key.strip('`').replace('.','`.`')), op)
+        key = self.key2sql(key)
+        item = '(`%s` %s ' % (key.replace('.','`.`'), op)
         if op == 'in':
             item += '(%s))' % ','.join([self.value2sql(x) for x in value])
         elif op == 'not in':
@@ -243,27 +250,31 @@ class DBConnection:
         '''字典可以是 {name:value} 形式，也可以是 {name:(operator, value)}'''
         x = []
         for k,v in d.items():
-            if isinstance(v, tuple):
+            k = self.key2sql(k)
+            if isinstance(v, (tuple,list)):
                 x.append('%s' % self.exp2sql(k, v[0], v[1]))
             else:
-                x.append('`%s`=%s' % (self.value2sql(k.strip(' `').replace('.','`.`')), 
+                x.append('`%s`=%s' % (k.replace('.','`.`'), 
                     self.value2sql(v)))
         return sp.join(x)
 
     def dict2on(self, d, sp=' and '):
         x = []
         for k,v in d.items():
-            x.append('`%s`=`%s`' % (self.value2sql(k.strip(' `').replace('.','`.`')), 
-                v.strip(' `').replace('.','`.`')))
+            k = self.key2sql(k)
+            x.append('`%s`=`%s`' % (k.replace('.','`.`'), v.strip(' `').replace('.','`.`')))
         return sp.join(x)
 
     def dict2insert(self, d):
         keys = list(d.keys())
         keys.sort()
         vals = []
+        new_keys = []
         for k in keys:
             vals.append('%s' % self.value2sql(d[k]))
-        new_keys = ['`' + self.value2sql(k.strip('`')) + '`' for k in keys]
+            k = self.key2sql(k)
+            new_keys.append('`' + k + '`')
+        #new_keys = ['`' + k.strip('`') + '`' for k in keys]
         return ','.join(new_keys), ','.join(vals)
 
     def fields2where(self, fields, where=None):
@@ -386,7 +397,17 @@ class DBConnection:
         ret = {}
         ret['page'] = p.page
         ret['pagesize'] = p.page_size
-        ret['pagenum'] = p.pages
+        ret['pagecount'] = p.pages
+        ret['data'] = p.pagedata.data 
+
+        return ret
+
+    def select_page_sql(self, sql, page=1, pagesize=20, count_sql=None, maxid=-1):
+        p = self.select_page(sql, page, pagesize, count_sql, maxid)
+        ret = {}
+        ret['page'] = p.page
+        ret['pagesize'] = p.page_size
+        ret['pagecount'] = p.pages
         ret['data'] = p.pagedata.data 
 
         return ret

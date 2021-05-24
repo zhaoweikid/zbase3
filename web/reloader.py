@@ -19,7 +19,7 @@ class Reloader:
 
     def __call__(self):
         is_reload = False
-        for mod in sys.modules.values():
+        for mod in list(sys.modules.values()):
             if self.check(mod):
                 is_reload = True
 

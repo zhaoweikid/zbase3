@@ -170,9 +170,11 @@ class Request(object):
                 else:
                     data[k.name] = k.value
         self._input = data
-        if jsondata:
-            obj = json.loads(self.storage.value)
-            self._input.update(obj)
+        if jsondata and self.data:
+            #d = self.data.decode('utf-8').strip()
+            if self.data[0] == b'{' and self.data[-1] == b'}':
+                obj = json.loads(d.decode('utf-8'))
+                self._input.update(obj)
         return self._input
 
     def postdata(self):

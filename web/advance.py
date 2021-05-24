@@ -2,7 +2,7 @@
 # many more advanced things
 from zbase3.web.core import Handler, HandlerFinish
 from zbase3.web import session
-from zbase3.web.httpcore import Response
+from zbase3.web.httpcore import Response, NotFound
 import json
 import logging
 
@@ -96,7 +96,7 @@ class APIHandler (Handler):
             elif ret:
                 self.succ(ret)
         else:
-            self.resp = NotFound('Not Found: ' + self.req.url)  
+            self.resp = NotFound('Not Found: ' + self.req.path)  
 
     POST = GET
     
