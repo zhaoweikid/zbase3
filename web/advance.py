@@ -93,7 +93,7 @@ class APIHandler (Handler):
             ret = func()
             if isinstance(ret, tuple) and len(ret) == 2:
                 self.fail(ret[0], ret[1])
-            elif ret:
+            elif ret is not None:
                 self.succ(ret)
         else:
             self.resp = NotFound('Not Found: ' + self.req.path)  
@@ -105,6 +105,8 @@ class APIHandler (Handler):
         obj = {'ret':OK, 'err':''}
         if data:
             obj['data'] = data
+        else:
+            obj['data'] = {}
         s = json.dumps(obj)
         #log.info('succ: %s', s)
         self.write(s)
@@ -117,6 +119,8 @@ class APIHandler (Handler):
             obj['debug'] = debug
         if data:
             obj['data'] = data
+        else:
+            obj['data'] = {}
         s = json.dumps(obj)
         #log.info('fail: %s', s)
         self.write(s)
