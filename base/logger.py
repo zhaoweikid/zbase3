@@ -257,16 +257,17 @@ def install(logdict, **options):
             conf[logname] = cf
 
         filename = onecf['filename']
+        fbasename = os.path.basename(filename)
         if isinstance(filename, str):
             if filename == 'stdout': 
                 cf['handlers'].append('console')
             else:
-                name = 'file-'+filename
+                name = 'file-'+fbasename
                 conf['handlers'][name] = create_log_conf(options, filename)
                 cf['handlers'] = [name]
         else:
             for level,fname in filename.items():
-                name = 'file-'+fname
+                name = 'file-'+os.path.basename(fname)
                 conf['handlers'][name] = create_log_conf(options, fname, level)
                 cf['handlers'].append(name)
     

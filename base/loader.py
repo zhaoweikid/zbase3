@@ -13,18 +13,17 @@ def loadconf(HOME, config_name=None):
     # 加载库路径
     #HOME = os.path.dirname(os.path.abspath(__file__))
     # 默认认为项目路径下lib, conf为模块搜索路径
-    libpath = [os.path.join(os.path.dirname(HOME), 'lib'), 
-               os.path.join(os.path.dirname(HOME), 'conf'),
-               os.path.dirname(os.path.dirname(HOME)),
-               ]   
-    for path in libpath:
-        if os.path.isdir(path):
-            sys.path.append(path)
+    basepath = HOME
+    if basepath.endswith('/bin'):
+        basepath = os.path.dirname(HOME)
 
-    # 如有lib目录,里面可以有zip包是模块 
-    pth = os.path.join(os.path.dirname(HOME), 'lib')
-    if os.path.isdir(pth):
-        loadlib(pth)
+    for p in ['lib', 'conf']:
+        pt = os.path.join(basepath, p)
+        if os.path.isdir(pt):
+            sys.path.append(pt)
+            # 如有lib目录,里面可以有zip包是模块 
+            if p == 'lib':
+                loadlib(pth)
 
     # 如果有有参数表明是指定配置文件
     if config_name:

@@ -15,7 +15,7 @@ client = None
 class NameClient:
     def __init__(self, cache_file=None, mode='random', cache_time=60):
         if not cache_file:
-            cache_file = '/tmp/nc-%s' % os.envrion.get('MYNAME', str(os.getpid()))
+            cache_file = '/tmp/zbase3-nc-%s' % os.environ.get('MYNAME', str(os.getpid()))
         self.c = None
         server = os.environ['NAMECENTER']
         self.servers = []
@@ -99,6 +99,7 @@ class NameClient:
     def report(self, name, addr, proto='rpc', mode=None):
         p = ReqProto()
         p.msgtype = TYPE_CALL_NOREPLY
+        p.msgtype = TYPE_CALL
         p.name = 'report'
         p.params = {
             'name':name, 
@@ -118,6 +119,7 @@ class NameClient:
                 self.c.sendto(s, addr)
                 log.info('server=nc|addr=%s:%d|f=report|name=%s|proto=%s|mode=%s|content=%s', addr[0], addr[1], name, proto, mode, s)
         elif mode == 'rr':
+            log.debug('self.pos:%d servers:%d', self.pos, len(self.servers))
             addr = self.servers[self.pos%len(self.servers)]
             self.pos += 1
             self.c.sendto(s, addr)
@@ -213,6 +215,54 @@ class NameClient:
         finally:
             conn.close()
 
+def getall_ipv4():
+    import netifaces
+
+    ips = []
+    ifs = netifaces.interfaces()
+    for i in ifs:
+        addrs = netifaces.ifaddresses(i)
+        #print('addrs:', addrs, type(addrs))
+        for k,v in addrs.items():
+            for item in v:
+                if ':' not in item['addr']:
+                    if item['addr'] != '127.0.0.1':
+                        ips.append(item['addr'])
+    return ips
+
+def server_report(name, addr, proto, septime=15):
+    if not name or not addr:
+        log.error('not found name or addr')
+        return
+    host, port = addr
+    addrstr = '%s:%d' % (host, port)
+    if host == '0.0.0.0':
+        ips = getall_ipv4()
+        addrstr = ','.join([ '%s:%d' % (x,port) for x in ips ])
+        
+    c = NameClient(mode='random')
+    while True:
+        try:
+            c.report(name, addrstr, proto)
+        except:
+            log.warn(traceback.format_exc())
+        gevent.sleep(septime)
+
+def query():
+    import pprint
+    log = logger.install('stdout')
+    c = NameClient(mode='rr')
+    print('>'*6, '1')
+    ret = c.query(sys.argv[2], False)
+    print('query %s:' % sys.argv[2])
+    pprint.pprint(ret)
+
+    print('>'*6, '2')
+    ret = c.query(sys.argv[2], False)
+    print('query %s:' % sys.argv[2])
+    pprint.pprint(ret)
+
+
 
 def test():
     log = logger.install('stdout')
@@ -251,7 +301,10 @@ def test():
     #log.debug('getall: %s', c.getall())
 
 if __name__ == '__main__':
-    test()
+    if len(sys.argv) == 1:
+        test()
+    else:
+        globals()[sys.argv[1]]()
 
 
 

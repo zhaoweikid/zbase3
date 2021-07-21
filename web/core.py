@@ -159,8 +159,13 @@ class WebApplication(object):
         self.urls += tmpurls
 
     def install(self):
-        if hasattr(self.settings, 'HOME') and self.settings.HOME not in sys.path:
-            sys.path.insert(0, self.settings.HOME)
+        #if hasattr(self.settings, 'HOME') and self.settings.HOME not in sys.path:
+            #sys.path.insert(0, self.settings.HOME)
+        if hasattr(self.settings, 'HOME'):
+            confpath = os.path.join(self.settings.HOME, 'conf')
+            if os.path.isdir(confpath) and confpath not in sys.path:
+                sys.path.insert(0, confpath)
+
 
         if hasattr(self.settings, 'TEMPLATE') and self.settings.TEMPLATE:
             tplcf = self.settings.TEMPLATE
