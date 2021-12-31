@@ -15,7 +15,7 @@ import gevent
 from zbase3.server import balance
 from zbase3.server.defines import *
 from zbase3.base import logger
-from zbase3.server.rpc import *
+from zbase3.server.rpc import ReqProto, RespProto
 from zbase3.server.rpcserver import recvall
 from zbase3.server import nameclient
 
@@ -94,9 +94,12 @@ class TcpConnection:
 
 
 class RPCClientBase:
-    def __init__(self, server):
+    def __init__(self, server, logid=''):
         self._c = None
         self._seqid = random.randint(0, 100000)
+        self._logid = logid
+        if not self._logid:
+            self._logid = logger.get_req_id()
 
         self._timeout = 1000 # 毫秒
 
@@ -185,22 +188,19 @@ class RPCClientBase:
     def _send_recv(self, s):
         return 'addr', 'data'
 
-    def _call(self, name, args, kwargs):
-        log.debug('call %s %s %s', name, args, kwargs)
+    def _call(self, req):
+        log.debug('call %s %s', req.name, req.params)
         t1 = time.time()
         retcode = -1
         addr = ('', 0)
         try:
-            p = ReqProto()
-            p.name = name
-            if args:
-                p.params = args
-            else:
-                p.params = kwargs
-            p.msgid = self._seqid
+            log.debug('logid:%s', self._logid)
+            if not req.logid:
+                req.logid = self._logid
+            req.msgid = self._seqid
             self._seqid += 1
-            s = p.dumps()
-
+            s = req.dumps()
+            #log.debug('req:%s', req)
             for i in (1,2):
                 try:
                     addr, data = self._send_recv(s)
@@ -214,10 +214,10 @@ class RPCClientBase:
                         raise
 
             p2 = RespProto.loads(data)
-            if p2.msgid != p.msgid:
-                raise RPCError('seqid error: %d,%d' % (p.msgid, p2.msgid))
+            if p2.msgid != req.msgid:
+                raise RPCError('seqid error: %d,%d' % (req.msgid, p2.msgid))
             retcode = p2.retcode
-            return p2.retcode, p2.result
+            return p2
         except:
             log.info('raise:' + traceback.format_exc())
             raise
@@ -225,18 +225,30 @@ class RPCClientBase:
             t2 = time.time()
             self._last_time = t2
             log.info('server=rpc|remote=%s:%d|f=%s|id=%d|arg=%s|t=%d|ret=%d', 
-                addr[0], addr[1], name, p.msgid, p.params, (t2-t1)*1000000, retcode)
+                addr[0], addr[1], req.name, req.msgid, req.params, (t2-t1)*1000000, retcode)
+
+
+    def _call_args(self, name, args, kwargs):
+        p = ReqProto(self._logid)
+        p.name = name
+        if args:
+            p.params = args
+        else:
+            p.params = kwargs
+
+        p2 = self._call(p)
+        return p2.retcode, p2.result
 
     def __getattr__(self, name):
         def _(*args, **kwargs):
-            return self._call(name, args, kwargs)
+            return self._call_args(name, args, kwargs)
         return _
 
 
 
 class TCPClient (RPCClientBase):
-    def __init__(self, server, keyfile=None, certfile=None):
-        RPCClientBase.__init__(self, server)
+    def __init__(self, server, logid='', keyfile=None, certfile=None):
+        RPCClientBase.__init__(self, server, logid)
 
         self._keyfile = keyfile
         self._certfile = certfile
@@ -280,8 +292,8 @@ class TCPClient (RPCClientBase):
 
 
 class UDPClient (RPCClientBase):
-    def __init__(self, server):
-        RPCClientBase.__init__(self, server)
+    def __init__(self, server, logid=''):
+        RPCClientBase.__init__(self, server, logid)
         self._c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def _send_recv(self, s):
@@ -305,8 +317,8 @@ class UDPClient (RPCClientBase):
 
 
 class HTTPClient (RPCClientBase):
-    def __init__(self, server):
-        RPCClientBase.__init__(self, server)
+    def __init__(self, server, logid=''):
+        RPCClientBase.__init__(self, server, logid)
 
     def _send_recv(self, s):
         server = self._select_server()
@@ -327,22 +339,26 @@ class HTTPClient (RPCClientBase):
         raise ValueError('request error! code:%d' % resp.status_code)
 
 
-def Client(addr, proto='tcp'):
+def Client(addr, logid='', proto='tcp'):
     if proto == 'udp':
-        return UDPClient(addr)
+        return UDPClient(addr, logid)
     elif proto == 'http':
-        return HTTPClient(addr)
+        return HTTPClient(addr, logid)
     else:
-        return TCPClient(addr)
+        return TCPClient(addr, logid)
 
 def test_client(port=7000):
+    import pprint
     global log
     log = logger.install('stdout')
 
     addr = {'addr':('127.0.0.1', port), 'timeout':1000}
-    p = Client(addr)
+    p = Client(addr, 'logid123')
     p.ping()
-    p.interface()
+    p.haha()
+    p.error()
+    #retcode, msg = p.interface()
+    #pprint.pprint(msg)
 
 def test_client_udp(port=7000):
     global log

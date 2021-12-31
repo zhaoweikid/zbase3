@@ -17,6 +17,9 @@ class APIHandler (Handler):
     # 不检查session的url, {url:method} or [url1,url2,...]
     session_nocheck = {}
 
+    def initial_session():
+        pass
+
     def initial(self):
         self.set_headers({'Content-Type': 'application/json; charset=UTF-8'})
 

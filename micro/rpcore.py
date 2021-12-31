@@ -7,6 +7,7 @@ from zbase3.server.baseserver import BaseGeventServer, BaseThreadServer, MyTask
 from zbase3.server.rpcserver import Handler
 from zbase3.base import dbpool
 from multiprocessing import Process
+import pprint
 import types
 import gevent
 import logging
@@ -19,17 +20,26 @@ class RPCHandler (Handler):
         return 0, 'testme'
 
     def interface(self):
-        '''查询服务对外提供的所有接口及描述'''
-        m = dir(self)
-        ifs = [ x for x in m if x[0:2] != '__' ] 
-        
-        its = {}
-        for k in ifs:
-            f = getattr(self, k)
-            log.debug('k:%s %s %s', k, type(k), type(f))
-            if type(f) != types.MethodType:
-                continue
-            its[k] = f.__doc__
+        '''获取服务提供的所有接口信息'''
+
+        def get_method(obj):
+            m = dir(obj)
+            ifs = [ x for x in m if x[0] != '_' ] 
+            
+            its = {}
+            for k in ifs:
+                f = getattr(obj, k)
+                if type(f) != types.MethodType:
+                    if isinstance(f, Handler):
+                        subfs = get_method(f)
+                        for subk, subv in subfs.items():
+                            its['%s.%s' % (k, subk)] = subv
+                    continue
+                its[k] = f.__doc__
+            return its
+
+        its = get_method(self)
+
         return 0, {'interfaces':its}
 
 

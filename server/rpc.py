@@ -21,19 +21,28 @@ package format:
     | package len(8B) | json 
 
 json:
-    request: [version, type, msgid, name, params]
-    response: [version, type, msgid, code, result]
+    request: [version, type, msgid, logid, name, params, extend]
+    response: [version, type, msgid, logid, code, result, extend]
 
+    extend 为可选字段，不是必须
 '''
 
 log = logging.getLogger()
 
+# 版本
 VERSION = 1
 
+# 调用
 TYPE_CALL  = 100
+# 调用，不需要返回结果。调用方不等待
 TYPE_CALL_NOREPLY = 101
+# 应答
 TYPE_REPLY = 200
+# 应答，处理有异常
 TYPE_REPLY_EXCEPT = 201
+
+class ProtocolError(Exception):
+    pass
 
 class Protocol (object):
     def __init__(self):
@@ -41,45 +50,65 @@ class Protocol (object):
         self.version = VERSION
         self.msgid = 0
         self.msgtype = 0
+        self.logid = ''
+        self.extend = None
 
     def __str__(self):
-        return '<Protocol version:%d msgtype:%d msgid:%d>' % \
-            (self.version, self.msgtype, self.msgid)
+        return '<Protocol version:%d msgtype:%d msgid:%d logid:%s>' % \
+            (self.version, self.msgtype, self.msgid, self.logid)
 
 class ReqProto (Protocol):
-    def __init__(self):
+    def __init__(self, logid='', extend=None):
         Protocol.__init__(self)
         
         self.name  = ''
         self.params = []
         self.options = ''
         self.msgtype = TYPE_CALL
+        self.extend = extend
+
+        if not logid:
+            self.logid = 'L%x'% random.randint(1000, 100000000)
+        else:
+            self.logid = logid
+
+        if self.msgid == 0:
+            self.msgid = random.randint(1, 100000000)
+
+        #log.debug('req logid:%s', self.logid)
 
     def __str__(self):
-        return '<ReqProto ver:%d msgid:%d name:%s param:%s>' % \
-            (self.version, self.msgid, self.name, self.params)
+        return '<ReqProto ver:%d msgid:%d logid:%s name:%s param:%s extend:%s>' % \
+            (self.version, self.msgid, self.logid, self.name, self.params, self.extend)
+
+    def call(self, name, params=None):
+        self.name = name
+        if params:
+            self.params = params
+        else:
+            self.params = {}
 
     @staticmethod
     def loads(body):
         if isinstance(body, bytes):
             body = body.decode('utf-8')
         #log.debug('load:%s', body)
-        version, msgtype, msgid, name, params = json.loads(body)
-
         p = ReqProto()
-        p.version = version
-        p.msgtype = msgtype
-        p.msgid   = msgid
-        p.name    = name
-        p.params  = params
+        obj = json.loads(body)
+        if len(obj) == 6:
+            p.version, p.msgtype, p.msgid, p.logid, p.name, p.params = obj
+        elif len(obj) == 7:
+            p.version, p.msgtype, p.msgid, p.logid, p.name, p.params, p.extend = obj
+        else:
+            raise ProtocolError('request error: {}'.format(body))
 
         return p
 
         
     def dumps(self, head=True):
-        if self.msgid == 0:
-            self.msgid = random.randint(1, 100000000)
-        obj = [self.version, self.msgtype, self.msgid, self.name, self.params]
+        obj = [self.version, self.msgtype, self.msgid, str(self.logid), self.name, self.params]
+        if self.extend:
+            obj.append(self.extend)
         s = json.dumps(obj)
         if head:
             s = '%08d' % (len(s)) + s
@@ -87,50 +116,79 @@ class ReqProto (Protocol):
 
 
 class RespProto (Protocol):
-    def __init__(self, msgid):
+    def __init__(self, msgid, logid=''):
         Protocol.__init__(self)
 
         self.msgid   = msgid
+        self.logid   = logid
         self.retcode = None
         self.result  = None
         self.msgtype = TYPE_REPLY
 
     def __str__(self):
-        return '<RespProto ver:%d msgid:%d code:%s result:%s>' % \
-            (self.version, self.msgid, str(self.retcode), str(self.result))
+        return '<RespProto ver:%d msgid:%d logid:%s code:%s result:%s extend:%s>' % \
+            (self.version, self.msgid, self.logid, str(self.retcode), str(self.result), self.extend)
+
+    def reply(self, code=0, result=None):
+        self.retcode = code
+        self.result = result
 
     @staticmethod
     def loads(body):
         if isinstance(body, bytes):
             body = body.decode('utf-8')
-        version, msgtype, msgid, code, result = json.loads(body)
 
-        p = RespProto(msgid)
-        p.version = version
-        p.msgtype = msgtype
-        p.retcode = code
-        p.result  = result
-
+        p = RespProto(0)
+        obj = json.loads(body)
+        if len(obj) == 6:
+            p.version, p.msgtype, p.msgid, p.logid, p.retcode, p.result = obj
+        elif len(obj) == 7:
+            p.version, p.msgtype, p.msgid, p.logid, p.retcode, p.result, p.extend = obj
+        else:
+            raise ProtocolError('response error: {}'.format(body))
         return p
-        
+
+    @staticmethod
+    def fromReq(req):
+        p = RespProto(req.msgid, req.logid)
+        return p
+       
     def dumps(self, head=True):
         if self.msgid == 0:
             self.msgid = random.randint(1, 100000000)
-        obj = [self.version, self.msgtype, self.msgid, self.retcode, self.result]
+        obj = [self.version, self.msgtype, self.msgid, str(self.logid), self.retcode, self.result]
+        if self.extend:
+            obj.append(self.extend)
         s = json.dumps(obj)
         if head:
             s = '%08d' % (len(s)) + s
         return s.encode('utf-8')
 
 
+def test_proto():
+    req = ReqProto()
+    req.call('ping', 10)
+    print(req)
+    p = req.dumps()
+    print(p)
 
+    req2 = ReqProto.loads(p[8:])
+    print(req2.dumps())
 
+    resp = RespProto.fromReq(req)
+    resp.reply(0, 'haha')
+    print(resp)
+    p = resp.dumps()
+    print(p)
+
+    resp2 = RespProto.loads(p[8:])
+    print(resp2.dumps())
 
 def test():
     f = globals()[sys.argv[1]]
     #print(len(sys.argv))
     if len(sys.argv) == 3:
-        f(int(sys.argv[2])) # port
+        f(int(sys.argv[2]))
     else:
         f()
 

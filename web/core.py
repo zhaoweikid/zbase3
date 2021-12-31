@@ -1,9 +1,10 @@
 # coding: utf-8
-import os, sys
+import os, sys, uuid, threading
 import re, time, types, mimetypes
 import urllib, urllib.request
-from zbase3.web import template, reloader
-from zbase3.base import dbpool
+from zbase3.web import template, reloader, session
+from zbase3.base import dbpool, logger
+from zbase3.base.logger import REQUEST_ID_MAP
 from zbase3.web.httpcore import Request, Response, NotFound
 import traceback, logging
 from zbase3.web.httpcore import MethodNotAllowed
@@ -11,7 +12,7 @@ from zbase3.web.httpcore import MethodNotAllowed
 log = logging.getLogger()
 
 # 读取500 页面
-error_page_content = 'some error'
+error_page_content = 'internal error'
 error_page_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'data','500.html')
 if os.path.exists(error_page_path):
     with open(error_page_path) as f:
@@ -28,19 +29,32 @@ class HandlerFinish(Exception):
 class Handler(object):
     def __init__(self, app, req):
         self.webapp = app
+        self.conf = app.settings
         self.req = req
-        #self.ses = session.Session(app.settings.SESSION, req.cookie)
         self.ses = None
         self.resp = Response()
         self.write = self.resp.write
         req.allowed_methods = []
 
+        self.initial_session()
+        reqid = self.req.get_header('X-Req-Id', '')
+        log.debug('X-Req-Id: %s', reqid)
+        logger.set_req_id(reqid)
+
+    def initial_session(self):
+        '''初始化session'''
+        sesconf = self.conf.SESSION
+        self.ses = session.create(sesconf, self.get_cookie(sesconf.get('cookie_name', 'sid')))
+
     def initial(self):
+        '''请求处理前调用，自定义初始化内容'''
         pass
 
     def finish(self):
-        #self.ses.end()
-        pass
+        '''请求结束调用'''
+        if self.ses:
+            self.ses.auto_save()
+        self.resp.headers['X-Req-Id'] = logger.get_req_id()
 
     def get_cookie(self, cookie_name):
         return self.req.cookie.get(cookie_name, '')
@@ -54,6 +68,7 @@ class Handler(object):
                 self.resp.headers[k] = v
 
     def redirect(self, *args, **kwargs):
+        '''http重定向'''
         return self.resp.redirect(*args, **kwargs)
 
     def GET(self):
@@ -80,6 +95,7 @@ class Handler(object):
         return
 
     def render(self, *args, **kwargs):
+        '''服务器端模板渲染'''
         if template.render:
             kwargs.update({
                 '_handler':self

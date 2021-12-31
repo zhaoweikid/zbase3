@@ -34,7 +34,7 @@ IDC  = os.environ.get('IDC')
 
 # 调试模式: True/False
 # 生产环境必须为False
-DEBUG = False
+DEBUG = True
 
 # 日志文件配置
 if DEBUG:
@@ -50,7 +50,7 @@ DATABASE = {
         'db': 'test',
         'host': '127.0.0.1',
         'port': 3306,
-        'user': 'root',
+        'user': 'zhaowei',
         'passwd': '123456',
         'charset': 'utf8',
         'conn': 3,

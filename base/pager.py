@@ -130,7 +130,7 @@ class PageDataDB (PageDataBase):
         sql = sql.replace('%', '%%')
         # 如果设置了最大id，在查询的时候要加上限制，但是这里有问题。可能原来的分页sql已经有where了
         if maxid > 0:
-            self.query_sql = sql + " where id<" + str(maxid) + " limit %d"
+            self.query_sql = sql + " where id>" + str(maxid) + " limit %d"
         else:
             self.query_sql = sql + " limit %d,%d"
 

@@ -48,7 +48,16 @@ CHARSET = 'UTF-8'
 SESSION = {
     'store':'SessionRedis', 
     'expire':3600, 
-    'db':0, 
-    'server':[{'addr':('127.0.0.1',6379), 'timeout':1000}],
+    #'server':[{'addr':('127.0.0.1',6379), 'timeout':1000}],
+    'cookie_name':'sid',
+    'config':{
+        'redis_conf': {
+            'host':'127.0.0.1', 
+            'port':6379,
+            'db':0, 
+        },
+        'user_key':'userid',
+    }
+
 }
 

@@ -41,7 +41,7 @@ MAX_REQ = 10000
 
 # 调试模式: True/False
 # 生产环境必须为False
-DEBUG = False
+DEBUG = True
 
 # 日志文件配置
 if DEBUG:

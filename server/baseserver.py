@@ -305,9 +305,11 @@ class BaseThreadServer (BaseServer):
         signal.signal(signal.SIGTERM, signal_worker_handler)
         log.warn('server started addr=%s:%d pid=%d', self.addr[0], self.addr[1], os.getpid())
 
+        self.install()
         self.tp = ThreadPool(self.max_conn, self.max_conn*5) 
         self.tp.start()
 
+        log.debug('worker ready!')
         while self.sock:
             try:
                 if self.sock.type == socket.SOCK_STREAM:

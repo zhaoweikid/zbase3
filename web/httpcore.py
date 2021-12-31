@@ -94,7 +94,6 @@ class Request(object):
         # FIXME: 兼容部分app提交header错误的处理
         if 'CONTENT_TYPE' in self.environ and self.environ['CONTENT_TYPE'] == 'application/x-www-form-urlencoded,application/x-www-form-urlencoded; charset=UTF-8':
             self.environ['CONTENT_TYPE'] = 'application/x-www-form-urlencoded; charset=UTF-8'
-
         # 处理query_string 为cgi提供安全数据
         safe_environ = {'QUERY_STRING':''}
         for key in ('REQUEST_METHOD', 'CONTENT_TYPE', 'CONTENT_LENGTH'):
@@ -111,6 +110,8 @@ class Request(object):
             self.data = b''
 
         self._parse_cookie()
+        
+        self._headers = {}
 
         if self.method != 'OPTIONS':
             #log.debug('req data:%s %s', self.data, type(self.data))
@@ -142,16 +143,23 @@ class Request(object):
         return r
 
     def headers(self):
-        headers = {}
+        if self._headers:
+            return self._headers
+        #headers = {}
         cgikeys = ('CONTENT_TYPE', 'CONTENT_LENGTH')
 
         for i in self.environ:
             if i in cgikeys:
-                headers[i.replace('_', '-').title()] = self.environ[i]
+                self._headers[i.replace('_', '-').title()] = self.environ[i]
             elif i[:5] == 'HTTP_':
-                headers[i[5:].replace('_', '-').title()] = self.environ[i]
+                self._headers[i[5:].replace('_', '-').title()] = self.environ[i]
 
-        return headers
+        return self._headers
+
+    def get_header(self, name, defv=None):
+        headers = self.headers()
+        return headers.get(name, defv)
+
 
     def clientip(self):
         if 'HTTP_X_FORWARDED_FOR' in self.environ:
@@ -172,8 +180,8 @@ class Request(object):
         self._input = data
         if jsondata and self.data:
             #d = self.data.decode('utf-8').strip()
-            if self.data[0] == b'{' and self.data[-1] == b'}':
-                obj = json.loads(d.decode('utf-8'))
+            if self.data[0:1] == b'{' and self.data[-1:] == b'}':
+                obj = json.loads(self.data)
                 self._input.update(obj)
         return self._input
 
@@ -184,7 +192,7 @@ class Request(object):
         data = self.input()
         if self.storage is not None:
             postdata = self.storage.value
-            if postdata and postdata[0] == '{' and postdata[-1] == '}':
+            if postdata and postdata[0:1] == '{' and postdata[-1:] == '}':
                 try:
                     obj = json.loads(postdata)
                     data.update(obj)
