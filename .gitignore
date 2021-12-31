@@ -7,3 +7,4 @@ __pycache__
 zbase3
 *.so
 .pytest_cache
+log/
