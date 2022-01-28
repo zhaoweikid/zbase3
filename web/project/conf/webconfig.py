@@ -39,14 +39,22 @@ CHARSET = 'UTF-8'
 
 # session配置
 # 1. session存储在文件中，expire为过期时间（秒），path为存储路径
-# {'store':'SessionFile',  'expire':30, 'path':'/tmp'}
+# {'store':'SessionFile',  'expire':30, 'config':{'path':'/tmp'}}
 # 2. session存储在redis中，expire为过期时间（秒），addr为redis的地址
-# {'store':'SessionRedis', 'expire':30, 'server':[{'addr':(ip,port), 'timeout':1000}]}
+# {'store':'SessionRedis', 'expire':30, 'server':{'host':'127.0.0.1', 'port':6379, 'db':0}}
 SESSION = {
     'store':'SessionRedis', 
     'expire':3600, 
-    'db':0, 
-    'server':[{'addr':('127.0.0.1',6379), 'timeout':1000}]
+    #'server':[{'addr':('127.0.0.1',6379), 'timeout':1000}],
+    'cookie_name': 'sid',
+    'config':{
+        'redis_conf': {
+            'host':'127.0.0.1', 
+            'port':6379,
+            'db':0, 
+        },
+        'user_key':'userid',
+    }
 }
 
 

@@ -9,6 +9,7 @@ from logging import DEBUG, INFO, WARN, ERROR, FATAL, NOTSET
 from stat import ST_DEV, ST_INO, ST_MTIME
 import time
 import threading
+import uuid
     
 #threading._main_thread.name = 'MT'
 threading.current_thread().setName('MT')
@@ -24,9 +25,45 @@ LEVEL_COLOR = {
 
 log = None
 
+REQUEST_ID_MAP = {}
+
+
+
+uuid_chars = ("a", "b", "c", "d", "e", "f",
+             "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s",
+             "t", "u", "v", "w", "x", "y", "z", "0", "1", "2", "3", "4", "5",
+             "6", "7", "8", "9", "A", "B", "C", "D", "E", "F", "G", "H", "I",
+             "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V",
+             "W", "X", "Y", "Z")
+
+def short_uuid():
+    uuidstr = uuid.uuid4().hex
+    result = ''
+    for i in range(0, 8):
+        sub = uuidstr[i*4: i*4+4]
+        x = int(sub, 16)
+        result += uuid_chars[x % 0x3E]
+    return result
+
+def set_req_id(reqid=None):
+    global REQUEST_ID_MAP
+    current_id = threading.current_thread().ident
+    REQUEST_ID_MAP[current_id] = reqid or short_uuid()
+
+def get_req_id():
+    global REQUEST_ID_MAP
+    current_id = threading.current_thread().ident
+    return REQUEST_ID_MAP.get(current_id, '')
+
+
 class ScreenHandler(logging.StreamHandler):
+    def set_r_id(self, record):
+        req_id = get_req_id() or '-'
+        record.requestId = req_id
+
     def emit(self, record):
         try: 
+            self.set_r_id(record)
             msg = self.format(record)
             stream = self.stream
             fs = LEVEL_COLOR[record.levelno] + "%s\n" + '\33[0m'
@@ -49,6 +86,10 @@ class MyTimedRotatingHandler (TimedRotatingFileHandler):
         self._check_time = 0
         self._statstream()
 
+    def set_r_id(self, record):
+        req_id = get_req_id() or '-'
+        record.requestId = req_id
+
 
     def emit(self, record):
         """
@@ -57,6 +98,8 @@ class MyTimedRotatingHandler (TimedRotatingFileHandler):
         If underlying file has changed, reopen the file before emitting the
         record to it.
         """
+
+        self.set_r_id(record)
         self.reopenIfNeeded()
         TimedRotatingFileHandler.emit(self, record)
 
@@ -231,7 +274,7 @@ def install(logdict, **options):
         'version': 1,
         'formatters': {
             'myformat': {
-                'format': '%(asctime)s %(process)d,%(threadName)s %(filename)s:%(lineno)d [%(levelname).1s] %(message)s',
+                'format': '%(asctime)s %(process)d,%(threadName)s %(requestId)s %(filename)s:%(lineno)d [%(levelname).1s] %(message)s',
             },  
         },  
         'handlers': {
@@ -257,8 +300,8 @@ def install(logdict, **options):
             conf[logname] = cf
 
         filename = onecf['filename']
-        fbasename = os.path.basename(filename)
         if isinstance(filename, str):
+            fbasename = os.path.basename(filename)
             if filename == 'stdout': 
                 cf['handlers'].append('console')
             else:
