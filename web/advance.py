@@ -17,7 +17,7 @@ class APIHandler (Handler):
     # 不检查session的url, {url:method} or [url1,url2,...]
     session_nocheck = {}
 
-    def initial_session():
+    def initial_session(self):
         pass
 
     def initial(self):

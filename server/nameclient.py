@@ -231,6 +231,7 @@ def getall_ipv4():
     return ips
 
 def server_report(name, addr, proto, septime=15):
+    import gevent
     if not name or not addr:
         log.error('not found name or addr')
         return
