@@ -225,23 +225,45 @@ def debug(msg, *args, **kwargs):
     global log
     log.debug(msg, *args, **kwargs)
 
+# 使用新的format方式, 以下i, w, e, f同样
+def d(msg, *args, **kwargs):
+    global log
+    log.debug(msg.format(*args, **kwargs))
+
 def info(msg, *args, **kwargs):
     global log
     log.info(msg, *args, **kwargs)
+
+def i(msg, *args, **kwargs):
+    global log
+    log.info(msg.format(*args, **kwargs))
 
 def warn(msg, *args, **kwargs):
     global log
     log.warning(msg, *args, **kwargs)
 warning = warn
 
+def w(msg, *args, **kwargs):
+    global log
+    log.warning(msg.format(*args, **kwargs))
+
 def error(msg, *args, **kwargs):
     global log
     log.error(msg, *args, **kwargs)
+
+def e(msg, *args, **kwargs):
+    global log
+    log.error(msg.format(*args, **kwargs))
 
 def fatal(msg, *args, **kwargs):
     global log
     log.fatal(msg, *args, **kwargs)
 critical = fatal
+
+def f(msg, *args, **kwargs):
+    global log
+    log.fatal(msg.format(*args, **kwargs))
+c = f
 
 
 def create_log_conf(options, name, level='DEBUG'):
@@ -427,12 +449,19 @@ def test_simple():
     simple_install('stdout')
 
     log = logging.getLogger()
-    for i in range(0, 10):
-        log.debug('debug ... %d', i)
-        log.info('info ... %d', i)
-        log.warning('warn ... %d', i)
-        log.error('error ... %d', i)
-        log.fatal('fatal ... %d', i)
+    for a in range(0, 10):
+        log.debug('debug ... %d', a)
+        log.info('info ... %d', a)
+        log.warning('warn ... %d', a)
+        log.error('error ... %d', a)
+        log.fatal('fatal ... %d', a)
+
+    for a in range(0, 10):
+        d('debug ... {:02d}', a)
+        i('info ... {:02d}', a)
+        w('warn ... {:02d}', a)
+        e('error ... {:02d}', a)
+        f('fatal ... {:02d}', a)
 
 def test_simple_file():
     simple_install('test.log')

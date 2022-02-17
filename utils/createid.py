@@ -31,7 +31,6 @@ def unpack_id64_time(xid):
     msec = (xid >> 22)
     return datetime.datetime.fromtimestamp(int(msec/1000.0))
 
-
 def test():
     from zbase3.base import logger, dbpool
     logger.install('stdout')
@@ -55,7 +54,6 @@ def test():
             print("time:%s id:%d" % (str(datetime.datetime.now()), myid))
             unpack_id64(myid)
             print("unkpack time:%s" % unpack_id64_time(myid))
-
 
 if __name__ == '__main__':
     test()
