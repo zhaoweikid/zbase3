@@ -28,6 +28,9 @@ class RPCError (Exception):
 class RPCConnError (Exception):
     pass
 
+class RPCClientERror (Exception):
+    pass
+
 class TcpConnection:
     def __init__(self, addr, timeout=1000, keyfile=None, certfile=None):
         self.addr = addr
@@ -231,6 +234,8 @@ class RPCClientBase:
     def _call_args(self, name, args, kwargs):
         p = ReqProto(self._logid)
         p.name = name
+        if args and kwargs:
+            raise RPCClientError('Call parameter error. Make sure that args and kwargs cannot be both true.')
         if args:
             p.params = args
         else:
