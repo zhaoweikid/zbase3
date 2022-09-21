@@ -76,7 +76,7 @@ class Handler(object):
 
     POST = HEAD = DELETE = PUT = GET
 
-    def OPTIONS(self):
+    def OPTIONS(self, *args, **kwargs):
         '''
             OPTIONS请求方法的主要用途有两个：
             1、获取服务器支持的HTTP请求方法；也是黑客经常使用的方法。
@@ -229,6 +229,7 @@ class WebApplication(object):
         log.info('add app:%s', appname)
         m = __import__(appname)
         self.add_urls(m.urls, appname)
+        return m
 
     def __call__(self, environ, start_response):
         times = [time.time()]
@@ -246,14 +247,14 @@ class WebApplication(object):
             if rpath.startswith(tuple(self.settings.STATICS.keys())):
                 # 静态文件
                 fpath = self.document_root +  rpath
-                resp = NotFound('Not Found: ' + fpath)
+                resp = NotFound('Not Found')
                 for k,v in self.settings.STATICS.items():
                     if rpath.startswith(k):
                         fpath = fpath.replace(k,v)
                         if os.path.isfile(fpath):
                             resp = self.static_file(req, fpath)
                         else:
-                            resp = NotFound('Not Found: ' + fpath)
+                            resp = NotFound('Not Found')
                         break
             else:
                 # 匹配url
@@ -263,9 +264,11 @@ class WebApplication(object):
                         if req.method not in self.allowed_methods:
                             raise NotImplemented
                         args    = ()
+                        kw = {}
+                        kw.update(kwargs)
                         mkwargs = match.groupdict()
                         if mkwargs:
-                            kwargs.update(mkwargs)
+                            kw.update(mkwargs)
                         else:
                             args = match.groups()
                         #log.debug('url match:%s %s', args, kwargs)
@@ -281,13 +284,13 @@ class WebApplication(object):
                             if hasattr(self.settings, 'MIDDLEWARE'):
                                 for x in self.settings.MIDDLEWARE:
                                     obj = x()
-                                    resp = obj.before(viewobj, *args, **kwargs)
+                                    resp = obj.before(viewobj, *args, **kw)
                                     if resp:
                                         log.debug('middleware before:%s', resp)
                                         break
                                     middleware.append(obj)
 
-                            ret = getattr(viewobj, req.method)(*args, **kwargs)
+                            ret = getattr(viewobj, req.method)(*args, **kw)
                             if ret:
                                 if isinstance(ret, (str, bytes)) and not viewobj.resp.content: 
                                     viewobj.resp.write(ret)

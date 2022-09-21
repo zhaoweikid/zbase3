@@ -1,13 +1,13 @@
 # coding: utf-8
-import os, sys
-import shutil, random
-import copy
-import time
+import base64
 import datetime
-import traceback, types
+import json
 import logging
+import os
+import random
+import time
+import uuid
 from collections import UserDict
-import uuid, json, base64
 
 log = logging.getLogger()
 
@@ -129,7 +129,7 @@ try:
     class SessionRedis(Session):
         def __init__(self, sid=None, expire=3600, config=None):
             self.redis_conf = config.get('redis_conf')
-            #self.db = config['db']
+            # self.db = config['db']
             # self.conn = redis.Redis(host=addr[0], port=addr[1], socket_timeout=timeout, db=db)
             self.conn = None
             refresh_time = config.get('refresh_time', 300)
@@ -189,7 +189,7 @@ try:
             return self.userid > 0
 
         def zkey(self, userid=None):
-            return 'zses.%s' % (userid or self.data.get(self.user_key, ''))
+            return 'zses.%s.%s' % (self.user_key, userid or self.data.get(self.user_key, ''))
 
         def save(self):
             if not self.data or self.user_key not in self.data:
@@ -381,6 +381,24 @@ def test5():
     ses.kickoff(ses.userid, 1)
 
 
+def test6():
+    """device"""
+    cf = {'redis_conf': {'host': '127.0.0.1', 'port': 6379, 'db': 0}, 'user_key': 'device_id'}
+    ses = SessionUser(config=cf)
+    ses['device_id'] = 123
+    ses['yyk'] = 123
+    ses.save()
+    print(ses.sid)
+
+    ses1 = SessionUser(sid=ses.sid, config=cf)
+    print(ses1.data)
+    ses1.kickoff(ses1.userid)
+
+    ses2 = SessionUser(sid=ses.sid, config=cf)
+    print(ses2.data)
+
+
 if __name__ == '__main__':
-    test4()
-    test5()
+    # test4()
+    # test5()
+    test6()

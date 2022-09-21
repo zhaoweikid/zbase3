@@ -242,6 +242,8 @@ class DBConnection:
             item += '(%s))' % ','.join([self.value2sql(x) for x in value])
         elif op == 'between':
             item += ' %s and %s)' % (self.value2sql(value[0]), self.value2sql(value[1]))
+        elif op in ('is not', 'is'):
+            item += self.value2sql(value) + ')'
         else:
             item += self.value2sql(value) + ')'
         return item
@@ -262,7 +264,10 @@ class DBConnection:
         x = []
         for k,v in d.items():
             k = self.key2sql(k)
-            x.append('`%s`=`%s`' % (k.replace('.','`.`'), v.strip(' `').replace('.','`.`')))
+            if isinstance(v, (tuple,list)):
+                x.append('%s' % self.exp2sql(k, v[0], v[1]))
+            else:
+                x.append('`%s`=`%s`' % (k.replace('.','`.`'), v.strip(' `').replace('.','`.`')))   
         return sp.join(x)
 
     def dict2insert(self, d):

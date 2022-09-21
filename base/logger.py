@@ -47,12 +47,12 @@ def short_uuid():
 
 def set_req_id(reqid=None):
     global REQUEST_ID_MAP
-    current_id = threading.current_thread().ident
+    current_id = threading.current_thread().name
     REQUEST_ID_MAP[current_id] = reqid or short_uuid()
 
 def get_req_id():
     global REQUEST_ID_MAP
-    current_id = threading.current_thread().ident
+    current_id = threading.current_thread().name
     return REQUEST_ID_MAP.get(current_id, '')
 
 

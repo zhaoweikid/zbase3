@@ -6,10 +6,10 @@ if __name__ == '__main__':
     monkey.patch_all()
 
 from gevent.pywsgi import WSGIServer
+from zbase3.base.excepts import MethodError, MethodFail
 from zbase3.server.rpc import *
 from zbase3.web import core
 from zbase3.web.validator import with_anno_check
-from zbase3.base.excepts import MethodError, MethodFail
 
 log = logging.getLogger()
 
@@ -19,12 +19,12 @@ def recvall(sock, count):
     while count:
         newbuf = sock.recv(count)
         if not newbuf:
-            return ''.join(buf)
+            return b''.join(buf)
         count -= len(newbuf)
         if count == 0 and not buf:
             return newbuf
         buf.append(newbuf)
-    return ''.join(buf)
+    return b''.join(buf)
 
 
 def call_handler(handlercls, data, addr, allow_noreply=True, vlog=True, dumpheader=True):
@@ -38,19 +38,21 @@ def call_handler(handlercls, data, addr, allow_noreply=True, vlog=True, dumphead
         if hasattr(handler, "_initial"):
             handler._initial()
 
-        f = handler
+        f = obj = handler
         for name in p1.name.split('.', 1):
             if name.startswith('_'):
                 raise MethodError()
+            obj = f
             f = getattr(f, name, None)
             if not f:
                 raise MethodError()
 
-        fn = with_anno_check(f)
+        # XXX 装饰器兼容, 防止self参数丢掉
+        fn = with_anno_check(f.__func__)
         if isinstance(p1.params, dict):
-            p2ret = fn(**p1.params)
+            p2ret = fn(obj, **p1.params)
         else:
-            p2ret = fn(*p1.params)
+            p2ret = fn(obj, *p1.params)
 
         if isinstance(p2ret, tuple):
             if len(p2ret) == 2:  # 返回两个

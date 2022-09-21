@@ -1,9 +1,8 @@
 # coding: utf-8
 import functools
 import inspect
-import re
-import types
 import logging
+import re
 import traceback
 
 from zbase3.base.excepts import ParamError
@@ -11,6 +10,7 @@ from zbase3.web.core import HandlerFinish
 
 log = logging.getLogger()
 
+T_MUST = 0
 T_INT = 1
 T_FLOAT = 2
 T_STR = 4
@@ -99,23 +99,31 @@ class Validator:
         self.data = {}
 
     def _check_item(self, field, val):
-        if field.type & T_INT:
-            return int(val)
+        if field.type == T_MUST:
+            ret = val
+        elif field.type & T_INT:
+            ret = int(val)
         elif field.type & T_FLOAT:
-            return float(val)
+            ret = float(val)
         elif field.type & T_STR:
             if field.match:
                 if not field.match.match(val):
                     log.debug('validator match error: %s, %s=%s', field.match.pattern, field.name, str(val))
                     raise ValidatorError(field.name)
-            return val
+            ret = val
         else:
             if not field.match.match(val):
                 log.debug('validator match error: %s, %s=%s', field.match.pattern, field.name, str(val))
                 raise ValidatorError(field.name)
-            return val
+            ret = val
 
-        raise ValidatorError('%s type error' % field.name)
+        # 枚举值校验 只处理STR FLOAT INT
+        if field.type <= T_STR and field.choice:
+            if ret not in field.choice:
+                choice = ','.join(map(str, field.choice))
+                raise ValidatorError('validator choice error: {}:{} not in {}'.format(field.name, val, choice))
+
+        return ret
 
     def verify(self, inputdata):
         result = []  # 没验证通过的字段名
@@ -139,6 +147,7 @@ class Validator:
         # check field and transfer type
         for f in self._fields:
             try:
+                f.name = f.name.split('__')[0]
                 val = _input.get(f.name)
                 if not val:  # field defined not exist
                     if f.must:  # null is not allowed, error
@@ -150,19 +159,22 @@ class Validator:
 
                 f.op = val[0]
                 v = val[1]
-                if val[0] != '=' and f.type == T_STR and ',' in v:  # , transfer to list
-                    val = v.split(',')
-                    f.value = [self._check_item(f, cv) for cv in val]
+                if val[0] != '=':
+                    d = v if ',' not in v else v.split(',')
+                    if isinstance(d, list):
+                        f.value = [self._check_item(f, cv) for cv in d]
+                    else:
+                        f.value = self._check_item(f, d)
                     if not f.value:
                         result.append(f.name)
                 else:
                     f.value = self._check_item(f, v)
                     if f.value is None:
                         result.append(f.name)
-                if val[0] == '=':
+                if f.op == '=':
                     self.data[f.name] = f.value
                 else:
-                    self.data[f.name] = (val[0], f.value)
+                    self.data[f.name] = (f.op, f.value)
             except ValidatorError:
                 result.append(f.name)
                 log.warn(traceback.format_exc())
@@ -271,13 +283,18 @@ def with_anno_check(func):
                     param.name, anno, must=is_empty(param.default), default=default
                 ))
             elif not is_args_kw(param) and is_empty(anno) and is_empty(param.default):
-                check_fields.append(Field(param.name, must=True))
+                check_fields.append(Field(param.name, valtype=T_MUST, must=True))
 
         validator = Validator(check_fields)
         ret = validator.verify(_input)
         if ret:
             raise ParamError(validator.report(ret))
         _input.update(validator.data)
+
+        self = _input.get('self', None)
+        if self:
+            setattr(self, 'anno_data', {k: v for k, v in _input.items() if k != 'self'})
+
         return func(**_input)
 
     return wrapper
@@ -348,6 +365,52 @@ def test2():
     log.info('after validator: %s', t.validator.data)
 
 
+def test_choice():
+    from zbase3.base import logger
+    log = logger.install('stdout')
+
+    fields = [
+        Field('age', T_INT, must=False, default=18, choice=[1, 2, 3]),
+        Field('name', T_STR, must=True, choice=['xiaom', 'xiaoz', 'xiaoh']),
+        Field('money', T_FLOAT, choice=[12.123, 234.121]),
+    ]
+    # error aaaa 12
+    input = {'name': 'aaaa', 'money': '12'}
+    v = Validator(fields)
+    ret = v.verify(input)
+    log.debug(f'{ret} {v.data}')
+    assert ret == ['name', 'money']
+    print('-----')
+
+    input = {'name': 'xiaom', 'money': '12.123'}
+    v = Validator(fields)
+    ret = v.verify(input)
+    log.debug(f'{ret} {v.data}')
+    assert ret == []
+    print('-----')
+
+    # error age
+    input = {'name': 'xiaom', 'money': '12.123', 'age': '4'}
+    v = Validator(fields)
+    ret = v.verify(input)
+    log.debug(f'{ret} {v.data}')
+    assert ret == ['age']
+    # print(ret)
+    # print(v.data)
+    input = {}
+    fields = [
+        Field('age', T_INT, must=False, default=18, choice=[12]),
+        Field('name', T_STR, must=True, choice=['123']),
+        Field('money', T_INT, choice=[123]),
+        Field('title', T_REG, match='.{3,20}', choice=[123]),
+    ]
+    input['title'] = '1111111'
+    input['money'] = '1111111'
+    v = Validator(fields)
+    ret = v.verify(input)
+    log.debug(ret)
+
+
 def test3():
     from zbase3.base import logger
     log = logger.install('stdout')
@@ -378,7 +441,7 @@ def test3():
 def test4():
     from zbase3.base import logger
     log = logger.install('stdout')
-    from zbase3.web.httpcore import Request, Response
+    from zbase3.web.httpcore import Response
 
     class Req:
         def __init__(self, data):
@@ -423,7 +486,10 @@ def test5():
         @with_anno_check
         def test_fn(
                 self,
-                nickname, age: int = 123,
+                nickname,
+                sex: Field('sex', T_STR, must=True, choice=['1', '2']),
+                likes: list,
+                age: int = 123,
                 score: float = 1.0,
                 mail: T_MAIL = 'yyk@qq.com',
                 mobile: T_MOBILE = '18513504945',
@@ -431,6 +497,7 @@ def test5():
                 **kw
         ):
             print('self.id', self.id)
+            print(f'sex: {sex}')
             print('nickname', type(nickname), nickname)
             print('age', type(age), age)
             print('score', type(score), score)
@@ -438,27 +505,20 @@ def test5():
             print('mobile', type(mobile), mobile)
             print('userid', type(userid), userid)
             print('kw', type(kw), kw)
+            print(f'likes: {likes} {type(likes)}')
 
-    @with_anno_check
-    def test_fn2(
-            nickname, age, score,
-            mail='yyk@qq.com',
-            mobile='18513504945',
-            userid=123,
-            *args,
-            **kw
-    ):
-        print('nickname', type(nickname), nickname)
-        print('age', type(age), age)
-        print('score', type(score), score)
-        print('mail', type(mail), mail)
-        print('mobile', type(mobile), mobile)
-        print('userid', type(userid), userid)
-        print('kw', type(kw), kw)
+        def fn1(self, a, b, c, d=1, **kw):
+            print(self.anno_data)
 
-    Test().test_fn("123", "123")
-    test_fn2('nickname', 'age', '1.0', 2.0, 3.0, 4.0, 5.0)
-    Test().test_fn("1", "1")
+    t = Test()
+    t.test_fn("123", '1', [1, 2, 3], "123")
+    print(t.anno_data)
+    t.test_fn("1", "1", [1, 2, 3])
+    print(t.anno_data)
+
+    with_anno_check(t.fn1.__func__)(t, 'a', 'b', 'c')
+
+    # test_fn2('nickname', 'age', '1.0', 2.0, 3.0, 4.0, 5.0)
 
 
 if __name__ == '__main__':
@@ -466,4 +526,5 @@ if __name__ == '__main__':
     # test2()
     # test3()
     # test4()
+    # test_choice()
     test5()
