@@ -301,13 +301,19 @@ class DBConnection:
         else:
             return '`%s`' % table
 
-    def insert(self, table, values, other=None):
+    def insert_sql(self, table, values, other=None):
         #sql = "insert into %s set %s" % (table, self.dict2sql(values))
         keys, vals = self.dict2insert(values)
         sql = "insert into %s(%s) values (%s)" % (self.format_table(table), keys, vals)
         if other:
             sql += ' ' + other
+        return sql
+
+
+    def insert(self, table, values, other=None):
+        sql = self.insert_sql(table, values, other)
         return self.execute(sql)
+
 
     def insert_list(self, table, values_list, other=None):
         sql = 'insert into %s ' % self.format_table(table)
@@ -322,20 +328,30 @@ class DBConnection:
             sql += ' ' + other
         return self.execute(sql)
 
-    def update(self, table, values, where=None, other=None):
+
+    def update_sql(self, table, values, where=None, other=None):
         sql = "update %s set %s" % (self.format_table(table), self.dict2sql(values))
         if where:
             sql += " where %s" % self.dict2sql(where,' and ')
         if other:
             sql += ' ' + other
+        return sql
+
+
+    def update(self, table, values, where=None, other=None):
+        sql = self.update_sql(table, values, where, other)
         return self.execute(sql)
 
-    def delete(self, table, where, other=None):
+    def delete_sql(self, table, where, other=None):
         sql = "delete from %s" % self.format_table(table)
         if where:
             sql += " where %s" % self.dict2sql(where, ' and ')
         if other:
             sql += ' ' + other
+        return sql
+
+    def delete(self, table, where, other=None):
+        sql = self.delete_sql(table, where, other)
         return self.execute(sql)
 
     def select(self, table, where=None, fields='*', other=None, isdict=True):
@@ -1014,7 +1030,7 @@ def test(way='simple'):
         'db':'test',        # db name
         'host':'127.0.0.1', # db host
         'port':3306,        # db port
-        'user':'root',      # db user
+        'user':'test',      # db user
         'passwd':'123456',  # db password
         'charset':'utf8',   # db charset
         'conn':3,
@@ -1023,10 +1039,10 @@ def test(way='simple'):
     DATABASE = {
         'dbmeta': {
             'engine':'pymysql',
-            'db':'dbmeta',
+            'db':'test',
             'host':'127.0.0.1',
             'port':3306,
-            'user':'root',
+            'user':'test',
             'passwd':'123456',
             'charset':'utf8',
             'conn':3,

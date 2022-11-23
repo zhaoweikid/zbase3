@@ -9,3 +9,4 @@ zbase3
 .pytest_cache
 .idea
 log
+.DS_Store

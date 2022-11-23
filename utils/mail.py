@@ -69,7 +69,7 @@ class MailSender:
     def send(self, msg, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
         '''实际发送邮件，msg为一个MailMessage对象'''
         try:
-            conn = smtplib.SMTP(self.smtpserver, timeout=timeout)
+            conn = smtplib.SMTP_SSL(self.smtpserver, timeout=timeout)
             #conn.set_debuglevel(1)
             conn.login(self.username, self.password)
             conn.sendmail(msg.mailfrom, msg.mailto, msg.tostring())
