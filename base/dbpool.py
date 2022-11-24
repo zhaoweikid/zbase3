@@ -480,7 +480,7 @@ def with_mysql_reconnect(func):
             self.conn.close()
         except:
             log.warning(traceback.format_exc())
-            self.conn = None
+        self.conn = None
 
     def _(self, *args, **argitems):
         if self.type == 'mysql':
@@ -576,7 +576,10 @@ class MySQLConnection (DBConnection):
 
     def close(self):
         log.info('server=%s|func=close|id=%d', self.type, self.conn_id%10000)
-        self.conn.close()
+        try:
+            self.conn.close()
+        except:
+            log.warning(traceback.format_exc())
         self.conn = None
 
     @with_mysql_reconnect
