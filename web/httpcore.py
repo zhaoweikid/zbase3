@@ -64,23 +64,26 @@ HTTP_STATUS_CODES = {
 class MyFieldStorage (cgi.FieldStorage):
     def read_binary(self):
         """Internal: read binary data."""
+        if self._binary_file:
+            return super(MyFieldStorage, self).read_binary()
+
         self.file = self.make_file()
         todo = self.length
-        if todo >= 0:
-            while todo > 0:
-                data = self.fp.read(min(todo, self.bufsize)) # bytes
-                if not isinstance(data, bytes):
-                    raise ValueError("%s should return bytes, got %s"
-                                     % (self.fp, type(data).__name__))
-                self.bytes_read += len(data)
-                if not data:
-                    self.done = -1
-                    break
-                if self._binary_file:
-                    self.file.write(data)
-                else:
-                    self.file.write(data.decode('utf-8'))
-                todo = todo - len(data)
+
+        read_bytes = []
+        while todo > 0:
+            data = self.fp.read(min(todo, self.bufsize)) # bytes
+            if not isinstance(data, bytes):
+                raise ValueError("%s should return bytes, got %s"
+                                 % (self.fp, type(data).__name__))
+            self.bytes_read += len(data)
+            if not data:
+                self.done = -1
+                break
+            read_bytes.append(data)
+            todo = todo - len(data)
+        
+        self.file.write(b''.join(read_bytes).decode('utf-8'))
 
 
 

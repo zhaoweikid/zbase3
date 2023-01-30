@@ -29,6 +29,7 @@ class WebSocketHandler(object):
 
     def handle(self):
         self.on_open()
+        print(self.environ)
         while True:
             try:
                 message = self.ws.receive()

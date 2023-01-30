@@ -24,6 +24,8 @@ websocket 报文协议
 
 import struct
 import logging
+import traceback
+from datetime import datetime
 
 from socket import error
 
@@ -42,11 +44,81 @@ class ProtocolError(WebSocketError):
     Raised if an error occurs when de/encoding the websocket protocol.
     """
 
+class WebSocketAddressException(WebSocketError):
+    """
+    If the websocket address info cannot be found, this exception will be raised.
+    """
+    pass
+
 
 class FrameTooLargeException(ProtocolError):
     """
     Raised if a frame is received that is too large.
     """
+
+class WebSocketException(Exception):
+    """
+    WebSocket exception class.
+    """
+    pass
+
+
+class WebSocketProtocolException(WebSocketError):
+    """
+    If the WebSocket protocol is invalid, this exception will be raised.
+    """
+    pass
+
+
+class WebSocketPayloadException(WebSocketError):
+    """
+    If the WebSocket payload is invalid, this exception will be raised.
+    """
+    pass
+
+
+class WebSocketConnectionClosedException(WebSocketError):
+    """
+    If remote host closed the connection or some network error happened,
+    this exception will be raised.
+    """
+    pass
+
+
+class WebSocketTimeoutException(WebSocketError):
+    """
+    WebSocketTimeoutException will be raised at socket timeout during read/write data.
+    """
+    pass
+
+
+class WebSocketProxyException(WebSocketError):
+    """
+    WebSocketProxyException will be raised when proxy error occurred.
+    """
+    pass
+
+
+class WebSocketBadStatusException(WebSocketError):
+    """
+    WebSocketBadStatusException will be raised when we get bad handshake status code.
+    """
+
+    def __init__(self, message, status_code, status_message=None, resp_headers=None):
+        msg = message % (status_code, status_message)
+        super().__init__(msg)
+        self.status_code = status_code
+        self.resp_headers = resp_headers
+
+
+class WebSocketAddressException(WebSocketError):
+    """
+    If the websocket address info cannot be found, this exception will be raised.
+    """
+    pass
+
+
+
 
 
 MSG_SOCKET_DEAD = "Socket is dead"
@@ -56,7 +128,7 @@ MSG_CLOSED = "Connection closed"
 
 class WebSocket(object):
 
-    __slots__ = ('environ', 'closed', 'stream', 'raw_write', 'raw_read', 'handler')
+    __slots__ = ('environ', 'closed', 'stream', 'raw_write', 'raw_read', 'handler', 'ping_time')
 
     OPCODE_CONTINUATION = 0x00  # 附加数据帧
     OPCODE_TEXT = 0x01  # 文本数据帧 utf-8编码
@@ -73,6 +145,8 @@ class WebSocket(object):
 
         self.raw_write = stream.write
         self.raw_read = stream.read
+
+        self.ping_time = None
 
         self.handler = handler
 
@@ -123,14 +197,11 @@ class WebSocket(object):
 
     @property
     def current_app(self):
-        if hasattr(self.handler.server.application, 'current_app'):
-            return self.handler.server.application.current_app
-        else:
-            class MockApp():
-                def on_close(self, *args):
-                    pass
+        class MockApp():
+            def on_close(self, *args):
+                pass
 
-            return MockApp()
+        return MockApp()
 
     def handle_close(self, header, payload):
         if not payload:
@@ -155,10 +226,19 @@ class WebSocket(object):
         self.close(code, payload)
 
     def handle_ping(self, header, payload):
+        """服务端处理ping请求
+        """
         self.send_frame(payload, self.OPCODE_PONG)
 
+    def send_ping(self, header, payload):
+        """客户端发送ping
+        """
+        self.send_frame(payload, self.OPCODE_PING)
+
     def handle_pong(self, header, payload):
-        pass
+        """客户端收到pong消息
+        """
+        self.ping_time = datetime.now()
 
     def read_frame(self):
 
@@ -274,14 +354,15 @@ class WebSocket(object):
             raise WebSocketError(MSG_SOCKET_DEAD)
 
     def close(self, code=1000, message=b''):
-        log.info('websocket close')
         if self.closed:
             self.current_app.on_close(MSG_ALREADY_CLOSED)
+            return
 
         try:
             message = self._encode_bytes(message)
 
             self.send_frame(message, opcode=self.OPCODE_CLOSE)
+            log.info('websocket close')
         except WebSocketError:
             # Failed to write the closing frame but it's ok because we're
             # closing the socket anyway.

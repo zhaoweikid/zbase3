@@ -99,7 +99,7 @@ class TcpConnection:
 class RPCClientBase:
     def __init__(self, server, logid=''):
         self._c = None
-        self._seqid = random.randint(0, 100000)
+        self._seqid = random.randint(1, 100000)
         self._logid = logid
         if not self._logid:
             self._logid = logger.get_req_id()
