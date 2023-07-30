@@ -195,7 +195,7 @@ class DBConnection:
     def get(self, sql, param=None, isdict=True):
         '''sql查询，只返回一条'''
         cur = self.conn.cursor()
-        cur.execute(sql, param)
+        cur.execute(sql, param or {})
         res = cur.fetchone()
         cur.close()
         res = self.format_timestamp(res, cur)

@@ -31,21 +31,30 @@ def call_handler(handlercls, data, addr, allow_noreply=True, vlog=True, dumphead
     p1 = ReqProto.loads(data)
     p2 = RespProto.fromReq(p1)
 
+    def _do(cls, fn_name):
+        if hasattr(cls, fn_name):
+            getattr(cls, fn_name)()
+
     start = time.time()
     try:
         log.debug('call %s %s', p1.name, p1.params)
         handler = handlercls(addr, p1, p2)
-        if hasattr(handler, "_initial"):
-            handler._initial()
+        _do(handler, '_initial')
 
+        # f -> handler.function, obj -> handler
         f = obj = handler
         for name in p1.name.split('.', 1):
+
             if name.startswith('_'):
                 raise MethodError()
             obj = f
             f = getattr(f, name, None)
             if not f:
                 raise MethodError()
+
+        # initial 初始化类的方法
+        if obj != handler:
+            _do(obj, '_initial')
 
         # XXX 装饰器兼容, 防止self参数丢掉
         fn = with_anno_check(f.__func__)
@@ -65,8 +74,7 @@ def call_handler(handlercls, data, addr, allow_noreply=True, vlog=True, dumphead
             # 只返回一个(不能是tuple类型)表示成功，返回的是成功的数据
             p2.retcode, p2.result = 0, p2ret
 
-        if hasattr(handler, "_finish"):
-            handler._finish()
+        _do(handler, '_finish')
     except MethodError as e:
         # 没有此方法
         log.warning('not found method: ' + p1.name)
@@ -86,9 +94,15 @@ def call_handler(handlercls, data, addr, allow_noreply=True, vlog=True, dumphead
     finally:
         if vlog:
             end = time.time()
+
+            if isinstance(p2.result, (int, float, dict, list)):
+                data_str = str(p2.result)[:1024]
+            else:
+                data_str = json.dumps(p2.result)[:1024]
+
             log.info('f=%s|remote=%s:%d|id=%d|t=%d|arg=%s|mt=%d|ret=%d|data=%s',
                      p1.name, addr[0], int(addr[1]), p1.msgid, int((end - start) * 1000000),
-                     p1.params, p2.msgtype, p2.retcode, json.dumps(p2.result))
+                     p1.params, p2.msgtype, p2.retcode, data_str)
 
     if allow_noreply and p1.msgtype == TYPE_CALL_NOREPLY:
         return ''

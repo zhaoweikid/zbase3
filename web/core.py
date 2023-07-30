@@ -22,9 +22,9 @@ class HandlerFinish(Exception):
     def __init__(self, code, value):
         self.code = code
         self.value = value
-    
+
     def __str__(self):
-        return 'HandlerFinish: %d %s' % (code, self.value)
+        return 'HandlerFinish: %d %s' % (self.code, self.value)
 
 class Handler(object):
     def __init__(self, app, req):
@@ -36,10 +36,11 @@ class Handler(object):
         self.write = self.resp.write
         req.allowed_methods = []
 
-        self.initial_session()
         reqid = self.req.get_header('X-Req-Id', '')
         log.debug('X-Req-Id: %s', reqid)
         logger.set_req_id(reqid)
+
+        self.initial_session()
 
     def initial_session(self):
         '''初始化session'''
@@ -147,7 +148,7 @@ class WebApplication(object):
         self.reloader = None
         if self.debug:
             self.reloader = reloader.Reloader()
-       
+
 
     def add_urls(self, urls, appname=''):
         tmpurls = []
@@ -170,7 +171,7 @@ class WebApplication(object):
                 tmpurls.append((re.compile(urlpath), obj, {}))
             else:
                 tmpurls.append((re.compile(urlpath), obj, item[2]))
-        
+
         #self.urls = tmpurls + self.urls
         self.urls += tmpurls
 
@@ -292,7 +293,7 @@ class WebApplication(object):
 
                             ret = getattr(viewobj, req.method)(*args, **kw)
                             if ret:
-                                if isinstance(ret, (str, bytes)) and not viewobj.resp.content: 
+                                if isinstance(ret, (str, bytes)) and not viewobj.resp.content:
                                     viewobj.resp.write(ret)
                                 elif isinstance(ret, Response):
                                     viewobj.resp = ret

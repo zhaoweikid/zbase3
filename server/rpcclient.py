@@ -88,7 +88,7 @@ class TcpConnection:
         bodylen = int(head.decode('utf-8'))
         #log.debug('recv head:%s %d', repr(head), bodylen)
         s = recvall(self.conn, bodylen)
-        log.debug('recv:%s', s)
+        log.debug('recv:%s', s[:1024])
         return s
 
     def sendall(self, s):

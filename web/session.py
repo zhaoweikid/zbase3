@@ -125,6 +125,16 @@ class Session(UserDict):
 try:
     import redis
 
+    REDIS_POOLS = {}
+
+
+    def get_redis_conn(redis_conf):
+        global REDIS_POOLS
+        key = '::'.join('{}={}'.format(k, v) for k, v in sorted(redis_conf.items()))
+        if key not in REDIS_POOLS:
+            REDIS_POOLS[key] = redis.Redis(**redis_conf)
+        return REDIS_POOLS[key]
+
 
     class SessionRedis(Session):
         def __init__(self, sid=None, expire=3600, config=None):
@@ -138,7 +148,7 @@ try:
 
         def _check_conn(self):
             if not self.conn:
-                self.conn = redis.Redis(**self.redis_conf)
+                self.conn = get_redis_conn(self.redis_conf)
 
         def _load(self):
             self._check_conn()
@@ -204,7 +214,7 @@ try:
 
         def db(self):
             if not self.conn:
-                self.conn = redis.Redis(**self.redis_conf)
+                self.conn = get_redis_conn(self.redis_conf)
             return self.conn
 
         def refresh(self):

@@ -7,7 +7,7 @@ import logging
 
 log = logging.getLogger()
 
-allow_ops = set(['=','>','>=','<','<=','!=','in','bt','match'])
+allow_ops = set(['=','>','>=','<','<=','!=','in','bt','match','~'])
 
 allow_types = set([ 
     int,
@@ -19,6 +19,10 @@ allow_types = set([
     datetime.datetime,
     datetime.date,
 ])
+
+class Config:
+    # 是否把日期时间格式的字符串转换为日期对象
+    trans_time = False
 
 
 class RuleExp:
@@ -33,6 +37,7 @@ class RuleExp:
         self.value = exp[2]
         self.vtype = type(self.value)
         self.funcs = funcs
+        self.real_type = type(self.value)
 
         global allow_types, allow_ops
         if self.op not in allow_ops:
@@ -41,9 +46,35 @@ class RuleExp:
         if self.vtype not in allow_types:
             raise TypeError('value type error: %s' % self.key)
 
+        if self.vtype in (list, tuple):
+            self.real_type = type(self.value[0])
+
+        # 自动转换时间格式
+        if Config.trans_time:
+            if self.key.endswith('time') or self.key.startswith('time'):
+                self.value = self._to_datetime(self.value)
+                self.real_type = datetime.datetime
 
     def __str__(self):
         return '%s %s %s' % (self.key, self.op, self.value)
+
+
+    def _value_conv(self, val):
+        if isinstance(val, str):
+            if re.match('^[12][0-9]{3}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$', val):
+                val = datetime.datetime.strptime(val, '%Y-%m-%d %H:%M:%S')
+            elif re.match('^[12][0-9]{3}\-[0-9]{2}\-[0-9]{2}$', val):
+                #val = datetime.date.fromisoformat(val)
+                val = datetime.datetime.strptime(val, '%Y-%m-%d')
+
+        return val
+
+    def _to_datetime(self, val):
+        if isinstance(val, list):
+            return [ self._value_conv(x) for x in val ] 
+        elif isinstance(val, tuple):
+            return tuple([ self._value_conv(x) for x in val ])
+        return self._value_conv(val)
 
 
     def check(self, data):
@@ -61,8 +92,13 @@ class RuleExp:
                 v1 = None
         if v1 is None:
             return False
-        
-        #log.debug('key:%s v1:%s', self.key, v1)
+
+        if self.real_type == datetime.datetime:
+            v1 = self._to_datetime(v1)
+        #    self.value = self._to_datetime(self.value)
+
+        #log.debug('real_type:%s', self.real_type) 
+        #log.debug('key:%s v1:%s %s', self.key, v1, type(v1))
         if self.op == '>':
             return v1 > self.value
         elif self.op == '>=':
@@ -79,7 +115,7 @@ class RuleExp:
             return v1 in self.value
         elif self.op == 'bt':
             return self.value[0] < v1 <= self.value[1]
-        elif self.op == 'match':
+        elif self.op == 'match' or self.op == '~':
             return re.match(self.value, v1) != None
 
 
@@ -95,7 +131,11 @@ class RuleItem:
         '''
         self.rid = rid
         self.exps = []
-        self.result = result
+
+        if result:
+            self.result = result
+        else:
+            self.result = {}
 
         for e in exps:
             self.exps.append(RuleExp(e, funcs))
@@ -156,6 +196,8 @@ class Ruler:
             1 第一次True就返回
             2 第一次False就返回
             3 所有都必须检查，返回所有True的
+        返回:
+            list: [True/False, id, result]
         '''
         ret = []
         for rt in self.ruleitems:
@@ -163,7 +205,7 @@ class Ruler:
             try:
                 x, result = rt.check(data)
             except:
-                log.warn('rule exception rule:%s data:%s', rt, data)
+                log.warning('rule exception rule:%s data:%s', rt, data)
                 log.info(traceback.format_exc())
                 continue
 
@@ -187,6 +229,8 @@ def test():
     global log
     log = logger.install('stdout')
 
+    Config.trans_time = True
+
     data = [
         {'name':'zh', 'age':100, 'time':'2018-01-01 12:22:10', 'info':{'m1':100, 'm2':'hehe'}},
         {'name':'zh2', 'age':100, 'time':'2018-01-01 12:22:10', 'info':{'m1':100, 'm2':'hehe'}},
@@ -206,6 +250,13 @@ def test():
         {'id':3, 
          'rule':[('test1()','>',500), ('info.m2','in',('hehe', 'haha'))], 
          'result':{'age':'$age', 'm1':'$info.m1', 'name':'$name'}},
+
+        {'id':4, 
+         'rule':[('name', '~', '^z[a-z]+[0-9]+$'), ('info.m2','in',('hehe', 'haha'))], 
+         'result':{'age':'$age', 'm1':'$info.m1', 'name':'$name'}},
+
+        {'id':5, 'rule':[('name', '~', '^z[a-z]+[0-9]+$'), ('age','=',100)]}, 
+
     ]
 
     def test1(data):
@@ -215,6 +266,7 @@ def test():
     rule.add_func('test1', test1)
 
     log.debug('rule:%s', rule)
+
     for x in data:
         log.debug('-'*80)
         log.debug('data:%s', x)
