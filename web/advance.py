@@ -3,13 +3,11 @@
 from zbase3.web.core import Handler, HandlerFinish
 from zbase3.web import session
 from zbase3.web.httpcore import Response, NotFound
+from zbase3.server.defines import *
 import json
 import logging
 
 log = logging.getLogger()
-
-OK  = 0
-ERR = -1
 
 class APIHandler (Handler):
     # 只要配置了sessino_conf, 所有的url都会检查session，不需要检查的在session_nocheck中设置
@@ -30,7 +28,6 @@ class APIHandler (Handler):
         name = self.req.path.split('/')[-1]
 
         # name: _xxxx means private method, only called in LAN , 
-        #       xxxx_ means not need check session
         # 仅允许内网访问
         if name.startswith('_'): # private
             c = self.req.clientip()
@@ -39,9 +36,9 @@ class APIHandler (Handler):
                 self.resp = Response(status=403)
                 raise HandlerFinish(403, 'client error')
         # 无session
-        if name.endswith('_'):
-            #log.debug('no check session 1')
-            return
+        #if name.endswith('_'):
+        #    log.debug('no check session 1')
+        #    return
         
         sid = self.get_cookie('sid')
         log.debug('sid: %s', sid)
@@ -128,6 +125,13 @@ class APIHandler (Handler):
         #log.info('fail: %s', s)
         self.write(s)
         return s
+
+    def load_errmsg(self):
+        self.errmsg = {}
+
+    def _errcode_msg(self, code):
+        return self.errmsg.get(code, '操作失败，请联系客服({})'.format(code))
+
 
 
 
