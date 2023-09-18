@@ -220,16 +220,17 @@ class Request(object):
 
 class Response(object):
     def __init__(self, content='', status=200, mimetype='text/html', charset='utf-8'):
+        self.content = b''
+
         if status >= 300 and not content:
             content = '%d %s' % (status, HTTP_STATUS_CODES.get(status, ''))
+        
+        if content:
+            self.write(content)
 
-        if type(content) == bytes:
-            self.content = content
-        else:
-            self.content = content.encode('utf-8')
         self.status  = status
         self.mimetype= mimetype
-        self.headers = {'X-Powered-By':'QF/'+version}
+        self.headers = {'X-Powered-By':'zbase3/'+version}
         self.cookies = cookies.SimpleCookie()
         self.charset = charset
 
@@ -266,10 +267,6 @@ class Response(object):
             self.write(data)
 
     def write(self, data):
-        #if type(data) == types.UnicodeType:
-        #    self.content += data.encode(self.charset)
-        #else:
-        #    self.content += data
         if type(data) == bytes:
             self.content += data
         else:

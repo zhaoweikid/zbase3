@@ -2,7 +2,7 @@
 import os, sys, uuid, threading
 import re, time, types, mimetypes
 import urllib, urllib.request
-from zbase3.web import template, reloader, session
+from zbase3.web import template, reloader, session, middleware
 from zbase3.base import dbpool, logger
 from zbase3.base.logger import REQUEST_ID_MAP
 from zbase3.web.httpcore import Request, Response, NotFound
@@ -11,15 +11,8 @@ from zbase3.web.httpcore import MethodNotAllowed
 
 log = logging.getLogger()
 
-# 读取500 页面
-error_page_content = 'internal error'
-error_page_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),'data','500.html')
-if os.path.exists(error_page_path):
-    with open(error_page_path) as f:
-        error_page_content = f.read()
-
 class HandlerFinish(Exception):
-    def __init__(self, code, value):
+    def __init__(self, code=500, value=''):
         self.code = code
         self.value = value
 
@@ -276,20 +269,24 @@ class WebApplication(object):
 
                         times.append(time.time())
                         viewobj = view(self, req)
+                        viewobj.config = self.settings
 
-                        middleware = []
+                        midwares = []
                         try:
                             viewobj.initial()
                             viewobj.allowed_methods = self.allowed_methods
 
                             if hasattr(self.settings, 'MIDDLEWARE'):
                                 for x in self.settings.MIDDLEWARE:
-                                    obj = x()
-                                    resp = obj.before(viewobj, *args, **kw)
-                                    if resp:
-                                        log.debug('middleware before:%s', resp)
-                                        break
-                                    middleware.append(obj)
+                                    log.debug('run middleware %s', x)
+                                    try:
+                                        obj = middleware.__dict__[x]()
+                                    except:
+                                        log.warning('middleware %s create error!')
+                                        log.warning(traceback.format_exc())
+                                        continue
+                                    obj.before(viewobj, *args, **kw)
+                                    midwares.append(obj)
 
                             ret = getattr(viewobj, req.method)(*args, **kw)
                             if ret:
@@ -298,13 +295,13 @@ class WebApplication(object):
                                 elif isinstance(ret, Response):
                                     viewobj.resp = ret
 
-                            for obj in middleware:
-                                resp = obj.after(viewobj)
-                                log.debug('middleware after:%s', resp)
+                            for obj in midwares:
+                                obj.after(viewobj)
 
                             viewobj.finish()
 
                         except HandlerFinish as e:
+                            log.info(str(e))
                             if not viewobj.resp.content:
                                 viewobj.resp.result(e.code, e.value)
                         resp = viewobj.resp
@@ -314,11 +311,12 @@ class WebApplication(object):
         except Exception as e:
             times.append(time.time())
             log.warn('web call error: %s', traceback.format_exc())
-            if self.debug:
-                resp = Response('<pre>%s</pre>' % traceback.format_exc(), 500)
-            else:
-                global error_page_content
-                resp = Response(error_page_content, 500)
+
+            if not viewobj or not viewobj.resp.content:
+                if self.debug:
+                    resp = Response('<pre>%s</pre>' % traceback.format_exc(), 500)
+                else:
+                    resp = Response('internal error', 500)
 
         times.append(time.time())
         #s = '%s %s %s ' % (req.method, req.path, str(viewobj.__class__)[8:-2])
@@ -330,7 +328,7 @@ class WebApplication(object):
             if req.query_string:
                 s.append(req.query_string[:1024])
             if req.method in ('POST', 'PUT'):
-                s.append(str(req.input())[:1024])
+                s.append(str(req.postdata())[:1024])
             if not req.input() and req.data:
                 s.append(str(req.data)[:1024])
             # if resp.content and resp.headers['Content-Type'].startswith('application/json'):
