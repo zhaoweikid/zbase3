@@ -35,7 +35,10 @@ class APIHandler (Handler):
         if func and func.__doc__ == 'validator':
             ret = func()
             if isinstance(ret, tuple) and len(ret) == 2:
-                self.fail(ret[0], ret[1])
+                if ret[0] != OK:
+                    self.fail(ret[0], ret[1])
+                else:
+                    self.succ(ret[1])
             elif ret is not None:
                 self.succ(ret)
         else:
