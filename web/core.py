@@ -56,7 +56,7 @@ class Handler(object):
     def set_cookie(self, *args, **kwargs):
         self.resp.set_cookie(*args, **kwargs)
 
-    def set_headers(self, headers={}):
+    def set_headers(self, headers=None):
         if headers:
             for k,v in headers.items():
                 self.resp.headers[k] = v
@@ -102,7 +102,7 @@ class WebApplication(object):
     def __init__(self, settings):
         '''
         settings:
-            DOCUMENT_ROOT: web root path
+            #DOCUMENT_ROOT: web root path
             DEBUG: True/False
             CHARSET: utf-8
             LOGGER: log file
@@ -128,12 +128,13 @@ class WebApplication(object):
         self.settings = settings
         self.install()
 
-        self.document_root = getattr(settings, 'DOCUMENT_ROOT', '')
-        if not self.document_root:
-            if getattr(settings, 'HOME', ''):
-                self.document_root = os.path.join(settings.HOME, 'docroot')
-            else:
-                self.document_root = '/var/www'
+        # 不再有document_root了
+        #self.document_root = getattr(settings, 'DOCUMENT_ROOT', '')
+        #if not self.document_root:
+        #    if getattr(settings, 'HOME', ''):
+        #        self.document_root = os.path.join(settings.HOME, 'docroot')
+        #    else:
+        #        self.document_root = '/var/www'
 
         self.debug = getattr(settings, 'DEBUG', False)
         self.charset = getattr(settings, 'CHARSET', 'utf-8')
@@ -240,11 +241,11 @@ class WebApplication(object):
 
             if rpath.startswith(tuple(self.settings.STATICS.keys())):
                 # 静态文件
-                fpath = self.document_root +  rpath
                 resp = NotFound('Not Found')
                 for k,v in self.settings.STATICS.items():
                     if rpath.startswith(k):
-                        fpath = fpath.replace(k,v)
+                        fpath = rpath.replace(k, v, 1)
+                        log.debug('local %s => %s', rpath, fpath)
                         if os.path.isfile(fpath):
                             resp = self.static_file(req, fpath)
                         else:

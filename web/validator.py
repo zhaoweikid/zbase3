@@ -19,16 +19,18 @@ T_REG = 8
 T_LIST = 16
 T_DICT = 32
 # 从这以后都是各种特殊定义正则类型
-T_MAIL = 100 << 16
+T_EMAIL = 100 << 16
 T_IP = 101 << 16
 T_MOBILE = 102 << 16
 T_DATE = 103 << 16
 T_DATETIME = 104 << 16
 T_TIMESTAMP = 105 << 16
 T_PASSWORD = 106 << 16
+T_PHONE = 107 << 16
+T_BANK_CARD = 108 << 16
 
 TYPE_MAP = {
-    T_MAIL: re.compile("^[a-zA-Z0-9_\-\'\.]+@[a-zA-Z0-9_]+(\.[a-z]+){1,2}$"),
+    T_EMAIL: re.compile("^[a-zA-Z0-9_\-\'\.]+@[a-zA-Z0-9_]+(\.[a-z]+){1,2}$"),
     T_IP: re.compile("^([0-9]{1,3}\.){3}[0-9]{1,3}$"),
     T_MOBILE: re.compile("^1[0-9]{10}$"),
     T_DATE: re.compile("^[0-9]{4}(\-|/)[0-9]{1,2}(\-|/)[0-9]{1,2}$"),
@@ -36,6 +38,8 @@ TYPE_MAP = {
     T_TIMESTAMP: re.compile("^[0-9]{1,10}$"),
     T_PASSWORD: re.compile(
         "^(?![0-9]+$)(?![a-zA-Z]+$)[0-9A-Za-z\:\;\<\>\,\.\?\/\~\!\@\#\$\%\^\&\*\(\)\-\_\+\=]{6,20}$"),
+    T_PHONE: re.compile("^\+?[0-9\-]{8,14}$"),
+    T_BANK_CARD: re.compile("^\[0-9]{13,19}$"),
 }
 
 opmap = {'eq': '=',
@@ -85,8 +89,8 @@ class Field:
 
         self.__dict__.update(options)
 
-        # T_MAIL 以后都是正则定义的特殊字符串类型
-        if valtype >= T_MAIL:
+        # T_EMAIL 以后都是正则定义的特殊字符串类型
+        if valtype >= T_EMAIL:
             self.match = TYPE_MAP[valtype]
 
         if self.match and isinstance(self.match, str):
@@ -600,7 +604,7 @@ def test_anno():
                 likes: list,
                 age: int = 123,
                 score: float = 1.0,
-                mail: T_MAIL = 'yyk@qq.com',
+                mail: T_EMAIL = 'yyk@qq.com',
                 mobile: T_MOBILE = '18513504945',
                 userid: int = 123,
                 **kw
