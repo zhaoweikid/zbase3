@@ -4,6 +4,9 @@ import os
 import sys
 from webconfig import *
 
+# 环境标识
+ENV = 'product'
+
 # 服务地址
 HOST = '0.0.0.0'
 
@@ -31,15 +34,8 @@ NAMECENTER = os.environ.get('NAMECENTER')
 # IDC标识
 IDC  = os.environ.get('IDC')
 
-# 调试模式: True/False
-# 生产环境必须为False
-DEBUG = False
-
 # 日志文件配置
-if DEBUG:
-    LOGFILE = 'stdout'
-else:
-    LOGFILE = os.path.join(HOME, 'log/project.log')
+LOGFILE = os.path.join(HOME, 'log/project.log')
 
 # 数据库配置
 DATABASE = {

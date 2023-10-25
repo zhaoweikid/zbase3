@@ -15,11 +15,12 @@ STATICS = {'/s/': os.path.join(HOME, 'static/')}
 TEMPLATE = {
     'cache': True,
     'path': 'templates',
-    'tmp': os.path.join(HOME, '../tmp'),
+    'tmp': os.path.join(HOME, 'tmp'),
 }
 
 # 默认在此目录下的所有都是APP
-# 每个APP有自己独立的url和handler
+# 每个APP有自己独立的url和handler。在app的__init__.py里设置
+# APP的静态文件默认路径为 /app/app_name/static/
 APP_PATH = os.path.join(HOME, 'bin/apps')
 
 # 中间件

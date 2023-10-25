@@ -18,9 +18,6 @@ class APIHandler (Handler):
     # url_public = [url1,url2,...]
     url_public = []
 
-    def initial_session(self):
-        pass
-
     def initial(self):
         self.set_headers({'Content-Type': 'application/json; charset=UTF-8'})
         return
@@ -92,23 +89,25 @@ class SessionMiddleware:
         if hasattr(viewobj, 'check_session') and not viewobj.check_session:
             log.info('view not need check session')
             return
-        sid = viewobj.get_cookie(viewobj.config.SESSION['cookie_name'])
-        log.debug('sid: %s', sid)
-        viewobj.ses = session.create(viewobj.config.SESSION, sid)
+        
+        if not viewobj.ses:
+            viewobj.create_session()
 
+        path = viewobj.req.path
         # 不需要检查session的url
-        #log.debug('path:%s, url_public:%s', viewobj.req.path, viewobj.url_public)
-        if viewobj.url_public and viewobj.req.path in viewobj.url_public:
+        if hasattr(viewobj, 'url_private') and path not in viewobj.url_private:
+            return
+        if hasattr(viewobj, 'url_public') and path in viewobj.url_public:
             return
 
         # 检查session
         # 1. 没有cookie
-        if not sid:
-            log.info('session not found sid')
-            raise HandlerFinish(403, 'session id error')
+        #if not self.get_cookie_sid():
+        #    log.info('session not found sid')
+        #    raise HandlerFinish(403, 'session id error')
         # 2. 没有session数据
         if not viewobj.ses.data:
-            log.info('session %s no data', sid)
+            log.info('session %s no data', viewobj.ses.sid)
             raise HandlerFinish(403, 'session data error')
 
     def after(self, viewobj, *args, **kwargs):

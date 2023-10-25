@@ -57,6 +57,7 @@ class Session(UserDict):
         pass
 
     def _check_refresh(self):
+        '''本地缓存session的刷新时间，减少对session存储的更新'''
         global session_refresh
         now = datetime.datetime.now()
         ts = int(now.timestamp())
@@ -64,19 +65,22 @@ class Session(UserDict):
         yestoday = now - datetime.timedelta(days=1)
         k0 = '%d%02d%02d' % (yestoday.year, yestoday.month, yestoday.day)
 
+        # 只要24小时内的，再早的不要
         if k0 in session_refresh:
             session_refresh.pop(k0)
 
+        # 缓存中没有今天的数据，要刷新
         v = session_refresh.get(k1)
         if not v:
             session_refresh[k1] = {self.sid: ts}
             return True
 
+        # 缓存中没有此sid，要刷新
         t = v.get(self.sid)
         if not t:
             v[self.sid] = ts
             return True
-
+        # 缓存中有数据，但是超时了要刷新
         if ts - t > self._refresh_time:
             v[self.sid] = ts
             return True
@@ -102,6 +106,7 @@ class Session(UserDict):
         pass
 
     def auto_save(self):
+        '''根据是否有数据修改自动保存'''
         if not self.data:
             if self._changed:
                 self.remove()

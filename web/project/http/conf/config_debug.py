@@ -2,7 +2,13 @@
 
 import os
 import sys
-from webconfig_debug import *
+from webconfig import *
+
+TEMPLATE['cache'] = False
+SESSION['config']['redis_conf']['host'] = '127.0.0.1'
+
+# 环境标识
+ENV = 'develop'
 
 # 服务地址
 HOST = '0.0.0.0'
@@ -32,15 +38,9 @@ NAMECENTER = os.environ.get('NAMECENTER')
 IDC  = os.environ.get('IDC')
 
 
-# 调试模式: True/False
-# 生产环境必须为False
-DEBUG = True
-
 # 日志文件配置
-if DEBUG:
-    LOGFILE = 'stdout'
-else:
-    LOGFILE = os.path.join(HOME, 'log/project.log')
+LOGFILE = 'stdout'
+#LOGFILE = os.path.join(HOME, 'log/project.log')
 
 
 # 数据库配置

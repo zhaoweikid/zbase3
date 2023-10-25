@@ -33,12 +33,12 @@ class Handler(object):
         log.debug('X-Req-Id: %s', reqid)
         logger.set_req_id(reqid)
 
-        self.initial_session()
+        self.create_session()
 
-    def initial_session(self):
+    def create_session(self):
         '''初始化session'''
-        sesconf = self.conf.SESSION
-        self.ses = session.create(sesconf, self.get_cookie(sesconf.get('cookie_name', 'sid')))
+        sid = self.get_cookie_sid()
+        self.ses = session.create(self.conf.SESSION, sid)
 
     def initial(self):
         '''请求处理前调用，自定义初始化内容'''
@@ -52,6 +52,9 @@ class Handler(object):
 
     def get_cookie(self, cookie_name):
         return self.req.cookie.get(cookie_name, '')
+
+    def get_cookie_sid(self):
+        return self.get_cookie(self.conf.SESSION.get('cookie_name', 'sid'))
 
     def set_cookie(self, *args, **kwargs):
         self.resp.set_cookie(*args, **kwargs)
@@ -117,26 +120,24 @@ class WebApplication(object):
         '''
         # 切换到字典static,兼容列表型
         if hasattr(settings, 'STATICS'):
-            if isinstance(settings.STATICS, list) or isinstance(settings.STATICS, tuple):
+            if isinstance(settings.STATICS, (list,tuple)):
                 settings.STATICS = dict(zip(settings.STATICS,settings.STATICS))
         else:
             settings.STATICS = {}
 
         self.allowed_methods = set(('GET', 'HEAD', 'POST', 'DELETE', 'PUT', 'OPTIONS'))
         self.charset = 'utf-8'
-
+        self._all_static_paths = {}
         self.settings = settings
         self.install()
-
-        # 不再有document_root了
-        #self.document_root = getattr(settings, 'DOCUMENT_ROOT', '')
-        #if not self.document_root:
-        #    if getattr(settings, 'HOME', ''):
-        #        self.document_root = os.path.join(settings.HOME, 'docroot')
-        #    else:
-        #        self.document_root = '/var/www'
+        
+        self._all_static_paths.update(self.settings.STATICS)
+        for k,v in self._all_static_paths.items():
+            log.debug('static: {0} => {1}'.format(k,v))
 
         self.debug = getattr(settings, 'DEBUG', False)
+        if not self.debug and getattr(settings, 'ENV', '') != 'product':
+            self.debug = True
         self.charset = getattr(settings, 'CHARSET', 'utf-8')
 
         self.reloader = None
@@ -224,6 +225,8 @@ class WebApplication(object):
         log.info('add app:%s', appname)
         m = __import__(appname)
         self.add_urls(m.urls, appname)
+        self._all_static_paths['/app/{0}/static'.format(appname)] = \
+            os.path.join(self.settings.HOME, 'bin/apps', appname, 'static')
         return m
 
     def __call__(self, environ, start_response):
@@ -239,13 +242,11 @@ class WebApplication(object):
             times.append(time.time())
             rpath = req.path
 
-            if rpath.startswith(tuple(self.settings.STATICS.keys())):
-                # 静态文件
-                resp = NotFound('Not Found')
-                for k,v in self.settings.STATICS.items():
+            if self._all_static_paths:
+                for k,v in self._all_static_paths.items():
                     if rpath.startswith(k):
                         fpath = rpath.replace(k, v, 1)
-                        log.debug('local %s => %s', rpath, fpath)
+                        log.debug('local {0} => {1}'.format(rpath, fpath))
                         if os.path.isfile(fpath):
                             resp = self.static_file(req, fpath)
                         else:
