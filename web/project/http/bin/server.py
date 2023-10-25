@@ -50,7 +50,7 @@ if __name__ == '__main__':
             t.daemon = True
             t.start()
         else:
-            log.warn('no NAMECENTER and MYNAME, not report server info to namecenter')
+            log.warning('no NAMECENTER and MYNAME, not report server info to namecenter')
 
         runner.run_simple(app, host=config.HOST, port=config.PORT)
     elif config.WORK_MODE == 'gevent':
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         if config.NAMECENTER and config.MYNAME:
             gevent.spawn(nameclient.server_report(config.MYNAME, (config.HOST, config.PORT), config.PROTO, config.NAME_REPORT_TIME))
         else:
-            log.warn('no NAMECENTER and MYNAME, not report server info to namecenter')
+            log.warning('no NAMECENTER and MYNAME, not report server info to namecenter')
 
         runner.run_gevent(app, host=config.HOST, port=config.PORT)
     else:

@@ -252,7 +252,7 @@ class WebApplication(object):
                         else:
                             resp = NotFound('Not Found')
                         break
-            else:
+            if resp is None:
                 # 匹配url
                 for regex, view, kwargs in self.urls:
                     match = regex.match(rpath)
