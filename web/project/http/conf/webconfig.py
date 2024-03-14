@@ -26,7 +26,19 @@ APP_PATH = os.path.join(HOME, 'bin/apps')
 # 中间件
 MIDDLEWARE = (
     # middleware
+    #'SignMiddleware',
+    #'SessionMiddleware',
 )
+
+# 中间件配置 
+MIDDLEWARE_CONF = {
+    'SignMiddleware': {
+        'apps':{  # appid: {userid:xx, secret:xx}
+        },
+    },
+    'SessionMiddleware': {
+    }
+}
 
 # 页面编码
 CHARSET = 'UTF-8'

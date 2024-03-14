@@ -1,4 +1,5 @@
 # coding: utf-8
+import sys
 import time, datetime, os
 import types, random
 import threading
@@ -75,6 +76,12 @@ class DBResult:
         self.fields = fields
         self.data = data
 
+    def rows(self):
+        return len(self.data) if self.data else 0
+    
+    def cols(self):
+        return len(self.fields) if self.fields else 0
+
     def todict(self):
         ret = []
         for item in self.data:
@@ -85,13 +92,22 @@ class DBResult:
         for row in self.data:
             yield dict(zip(self.fields, row))
 
+    def __len__(self):
+        return self.rows()
+
     def row(self, i, isdict=True):
         if isdict:
             return dict(zip(self.fields, self.data[i]))
         return self.data[i]
 
+    def value(self, row, col):
+        return self.data[row][col]
+
     def __getitem__(self, i):
         return dict(zip(self.fields, self.data[i]))
+
+    def __repr__(self):
+        return '<DBResult rows={0} cols={1}>'.format(len(self.data), len(self.fields))
 
 
 class DBFunc(object):
@@ -166,7 +182,7 @@ class DBConnection:
         return ret
 
     @timeit
-    def query(self, sql, param=None, isdict=True, head=False):
+    def query(self, sql, param=None, isdict=True, isresult=False, head=False):
         '''sql查询，返回查询结果'''
         #log.info('query:%s', sql)
         cur = self.conn.cursor()
@@ -178,18 +194,28 @@ class DBConnection:
         cur.close()
         res = [self.format_timestamp(r, cur) for r in res]
         #log.info('desc:', cur.description)
-        if res and isdict:
+        if not res:
+            return
+
+        xkeys = [ i[0] for i in cur.description]
+
+        if isresult:
+            result = DBResult(xkeys, res)
+            return result
+
+        if isdict:
             ret = []
-            xkeys = [ i[0] for i in cur.description]
             for item in res:
                 one = dict(zip(xkeys, item))
                 ret.append(one)
-        else:
+            return ret
+
+        if head:
             ret = res
-            if head:
-                xkeys = [ i[0] for i in cur.description]
-                ret.insert(0, xkeys)
-        return ret
+            ret.insert(0, xkeys)
+            return ret
+
+        return res
 
     @timeit
     def get(self, sql, param=None, isdict=True):
@@ -208,12 +234,37 @@ class DBConnection:
 
 
     def field2sql(self, v, charset='utf-8'):
+        '''字段名转换'''
         if isinstance(v, bytes):
             v = v.decode(charset)
-
         return self.escape(v)
 
+    def fields_str(self, fields, table=None):
+        '''转换输入的字段名为逗号分隔字符串格式'''
+        if isinstance(fields, (list, tuple)):
+            fs = []
+            for x in fields:
+                if isinstance(x, (list, tuple)):
+                    fs.append("%s as `%s`" % (self.field2sql(x[0]), self.field2sql(x[1])))
+                else:
+                    fx = self.field2sql(x)
+                    if '.' in x:
+                        fs.append("%s as `%s`" % (fx, fx))
+                    else:
+                        if table:
+                            fs.append(table+'.'+self.field2sql(x))
+                        else:
+                            fs.append(self.field2sql(x))
+            fieldstr = ','.join(fs)
+        else:
+            fieldstr = ','.join([ self.field2sql(x) for x in fields.split(',')])
+        if not fieldstr:
+            fieldstr = '*'
+        return fieldstr
+
+
     def value2sql(self, v, charset='utf-8'):
+        '''输入字段值转换为sql中的值格式'''
         if isinstance(v, bytes):
             v = v.decode(charset)
 
@@ -231,9 +282,11 @@ class DBConnection:
             return str(v)
 
     def key2sql(self, v):
+        '''替换字段名中的非法字符'''
         return re.sub(KEY_CP, '', v)
 
     def exp2sql(self, key, op, value):
+        '''条件表达式转换'''
         key = self.key2sql(key)
         item = '(`%s` %s ' % (key.replace('.','`.`'), op)
         if op == 'in':
@@ -244,6 +297,12 @@ class DBConnection:
             item += ' %s and %s)' % (self.value2sql(value[0]), self.value2sql(value[1]))
         elif op in ('is not', 'is'):
             item += self.value2sql(value) + ')'
+        elif op == '=':
+            if '.' in key and '.' in value and value.startswith('$:'):
+                v = self.key2sql(value[2:])
+                item += '`' + v.replace('.', '`.`') + '`)'
+            else:
+                item += self.value2sql(value) + ')'
         else:
             item += self.value2sql(value) + ')'
         return item
@@ -260,6 +319,45 @@ class DBConnection:
                     self.value2sql(v)))
         return sp.join(x)
 
+    def list2sql_where(self, data):
+        '''list为['and/or', [name,op,value], ['and/or', [name,op,value], ...], ...]形式'''
+
+        lgops = ('and', 'or')
+       
+        op = data[0]
+        if op not in lgops:
+            return self.exp2sql(data[0], data[1], data[2])
+
+        ret = []
+        for i in range(1, len(data)): 
+            x = data[i]
+            ret.append(self.list2sql_where(x))
+        sp = ' ' + op + ' '
+        return '(' + sp.join(ret) + ')'
+
+
+    def list_find_table(self, data):
+        tbs = []
+        if len(data) == 3 and data[1] == '=' and data[2].startswith('$:'):
+            p = data[2][2:].split('.')
+            tbs.append(p[0])
+            return tbs
+            
+        for x in data:
+            if isinstance(x, (list,tuple)):
+                ret = self.list_find_table(x)
+                tbs += ret
+
+        return tbs
+
+
+    def obj2sql_kv(self, data):
+        if isinstance(data, dict):
+            return self.dict2sql(data, ' and ')
+        return self.list2sql_where(data)
+
+
+
     def dict2on(self, d, sp=' and '):
         x = []
         for k,v in d.items():
@@ -271,6 +369,7 @@ class DBConnection:
         return sp.join(x)
 
     def dict2insert(self, d):
+        '''字典转换为insert语句中的值对'''
         keys = list(d.keys())
         keys.sort()
         vals = []
@@ -332,7 +431,8 @@ class DBConnection:
     def update_sql(self, table, values, where=None, other=None):
         sql = "update %s set %s" % (self.format_table(table), self.dict2sql(values))
         if where:
-            sql += " where %s" % self.dict2sql(where,' and ')
+            #sql += " where %s" % self.dict2sql(where,' and ')
+            sql += " where %s" % self.obj2sql_kv(where)
         if other:
             sql += ' ' + other
         return sql
@@ -345,7 +445,8 @@ class DBConnection:
     def delete_sql(self, table, where, other=None):
         sql = "delete from %s" % self.format_table(table)
         if where:
-            sql += " where %s" % self.dict2sql(where, ' and ')
+            #sql += " where %s" % self.dict2sql(where, ' and ')
+            sql += " where %s" % self.obj2sql_kv(where)
         if other:
             sql += ' ' + other
         return sql
@@ -354,7 +455,7 @@ class DBConnection:
         sql = self.delete_sql(table, where, other)
         return self.execute(sql)
 
-    def select(self, table, where=None, fields='*', other=None, isdict=True):
+    def select(self, table, where=None, fields='*', other=None, isdict=True, **kwargs):
         sql = self.select_sql(table, where, fields, other)
         return self.query(sql, None, isdict=isdict)
 
@@ -380,30 +481,67 @@ class DBConnection:
         sql = self.select_join_sql(table1, table2, join_type, on, where, fields, other)
         return self.get(sql, None, isdict=isdict)
 
-    def select_sql(self, table, where=None, fields='*', other=None):
-        if isinstance(fields, (list, tuple)):
-            fields = ','.join([ self.field2sql(x) for x in fields ])
-        else:
-            fields = ','.join([ self.field2sql(x) for x in fields.split(',') ])
+    def _select_append_args(self, kwargs):
+        sql = ''
+        if kwargs:
+            for k in ['groupby', 'having', 'join', 'on', 'orderby', 'orderdesc', 'limit']:
+                v = kwargs.get(k)
+                if not v:
+                    continue
+                if k == 'groupby':
+                    sql += ' group by %s' % (self.fields_str(v))
+                elif k == 'having':
+                    sql += ' having %s' % (self.obj2sql_kv(v))
+                elif k == 'join':
+                    sql += ' inner join %s' % (self.format_table(v))
+                elif k == 'on':
+                    sql += ' on %s' % (self.dict2on(v))
+                elif k == 'orderby':
+                    sql += ' order by %s' % (self.fields_str(v))
+                elif k == 'orderdesc':
+                    sql += ' order by %s desc' % (self.fields_str(v))
+                elif k == 'limit':
+                    if isinstance(v, (list,tuple)):
+                        sql += ' limit %d,%d' % (int(v[0]), int(v[1]))
+                    else:
+                        sql += ' limit %d' % (int(v))
+        return sql
 
-        sql = "select %s from %s" % (fields, self.format_table(table))
+
+    def select_sql(self, table, where=None, fields='*', other=None, **kwargs):
+        tbs = self.list_find_table(where)
+        log.debug('tables: %s table: %s', tbs, table)
+      
+        table = self.format_table(table)
+        if tbs:
+            fields = self.fields_str(fields, table)
+        else:
+            fields = self.fields_str(fields)
+        log.debug('fields: %s', fields)
+        sql = "select %s from %s" % (fields, table)
+        if tbs:
+            sql += ", " + ",".join([self.format_table(x) for x in tbs])
         if where:
-            sql += " where %s" % self.dict2sql(where, ' and ')
+            sql += " where %s" % self.obj2sql_kv(where)
+
+        if kwargs:
+            sql += self._select_append_args(kwargs)
         if other:
             sql += ' ' + other
         return sql
 
-    def select_join_sql(self, table1, table2, join_type='inner', on=None, where=None, fields='*', other=None):
-        if isinstance(fields, (list, tuple)):
-            fields = ','.join([ self.field2sql(x) for x in fields ])
-        else:
-            fields = ','.join([ self.field2sql(x) for x in fields.split(',') ])
+    def select_join_sql(self, table1, table2, join_type='inner', on=None, where=None, fields='*', other=None, **kwargs):
+        fields = self.fields_str(fields)
 
-        sql = "select %s from %s %s join %s" % (fields, self.format_table(table1), join_type, self.format_table(table2))
+        sql = "select %s from %s %s join %s" % (fields, self.format_table(table1), 
+                join_type, self.format_table(table2))
         if on:
             sql += " on %s" % self.dict2on(on, ' and ')
         if where:
-            sql += " where %s" % self.dict2sql(where, ' and ')
+            sql += " where %s" % self.obj2sql_kv(where)
+        if kwargs:
+            sql += self._select_append_args(kwargs)
+
         if other:
             sql += ' ' + other
         return sql
@@ -599,8 +737,8 @@ class MySQLConnection (DBConnection):
         return DBConnection.executemany(self, sql, param)
 
     @with_mysql_reconnect
-    def query(self, sql, param=None, isdict=True, head=False):
-        return DBConnection.query(self, sql, param, isdict, head)
+    def query(self, sql, param=None, isdict=True, isresult=False, head=False):
+        return DBConnection.query(self, sql, param, isdict, isresult, head)
 
     @with_mysql_reconnect
     def get(self, sql, param=None, isdict=True):
@@ -1025,7 +1163,7 @@ def with_database(name, errfunc=None, errstr=''):
     return f
 
 
-def test(way='simple'):
+def test():
     import pprint
 
     DB = {
@@ -1087,13 +1225,73 @@ def test(way='simple'):
 
         settings['log_level'] = 'all'
 
+def test_result():
+    import pprint
+
+    DB = {
+        'engine':'pymysql',   # db type, eg: mysql, sqlite
+        'db':'test',        # db name
+        'host':'127.0.0.1', # db host
+        'port':3306,        # db port
+        'user':'test',      # db user
+        'passwd':'123456',  # db password
+        'charset':'utf8',   # db charset
+        'conn':3,
+    }
+
+    DATABASE = {
+        'test':DB,
+    }
+
+    install(DATABASE)
+
+    sqls = [
+        "DROP TABLE testme;",
+        "CREATE TABLE testme(id int(4) not null primary key auto_increment, name varchar(128), ctime int(4));",
+    ]
+
+    with get_connection('test') as conn:
+        for s in sqls:
+            print(s)
+            try:
+                conn.execute(s)
+            except Exception as e:
+                if e.args[0] == 1051:
+                    continue
+                raise
+
+        for i in range(1, 4):
+            conn.insert('testme', {'id':i, 'name':'haha'+str(i), 'ctime':int(time.time())+i})
+
+        ret = conn.query('select * from testme', isresult=True)
+        assert isinstance(ret, DBResult)
+        log.debug('result: %s', ret)
+        log.debug('result rows: %s', ret.rows())
+        log.debug('result cols: %s', ret.cols())
+        
+        assert ret.rows() == 3
+        assert ret.cols() == 3
+
+        for row in ret:
+            log.debug('row: %s', row)
+
+        r = ret.row(1)
+        log.debug('result row 1 dict: %s', r)
+        assert r and len(r) == 3 and isinstance(r, dict)
+        
+        r = ret.row(1, isdict=False)
+        log.debug('result row 1: %s', r)
+        assert r and len(r) == 3 and isinstance(r, tuple)
 
 
 def test_main():
     import logger
     logger.install('stdout')
-
-    test()
+        
+    name = sys.argv[1]
+    print('test name:', name)
+     
+    globals()[name]()
 
     print('complete!')
 

@@ -20,20 +20,24 @@ class HandlerFinish(Exception):
         return 'HandlerFinish: %d %s' % (self.code, self.value)
 
 class Handler(object):
-    def __init__(self, app, req):
+    def __init__(self, app, req, handler=None):
         self.webapp = app
         self.conf = app.settings
         self.req = req
-        self.ses = None
-        self.resp = Response()
-        self.write = self.resp.write
         req.allowed_methods = []
 
-        reqid = self.req.get_header('X-Req-Id', '')
-        log.debug('X-Req-Id: %s', reqid)
-        logger.set_req_id(reqid)
+        if not handler:
+            reqid = self.req.get_header('X-Req-Id', '')
+            log.debug('X-Req-Id: %s', reqid)
+            logger.set_req_id(reqid)
 
-        self.create_session()
+            self.resp = Response()
+            self.create_session()
+        else:
+            self.resp = handler.resp
+            self.ses = handler.ses
+            
+        self.write = self.resp.write
 
     def create_session(self):
         '''初始化session'''
@@ -99,7 +103,7 @@ class Handler(object):
             })
             self.write(template.render(*args, **kwargs))
 
-
+app = None
 
 class WebApplication(object):
     def __init__(self, settings):
@@ -118,6 +122,9 @@ class WebApplication(object):
             SESSION
             MIDDLEWARE
         '''
+        global app
+        app = self
+
         # 切换到字典static,兼容列表型
         if hasattr(settings, 'STATICS'):
             if isinstance(settings.STATICS, (list,tuple)):
@@ -146,29 +153,33 @@ class WebApplication(object):
 
 
     def add_urls(self, urls, appname=''):
-        tmpurls = []
         for item in urls:
-            if type(item[1]) == str:
-                mod, cls = item[1].rsplit('.', 1)
-                mod = __import__(mod, None, None, [''])
-                obj = getattr(mod, cls)
-            else:
-                obj = item[1]
+            kwargs = None
+            if len(item) == 3:
+                kwargs = item[2]
+            self.add_url(item[0], item[1], kwargs, appname)
+ 
 
-            urlpath = item[0]
-            if appname:
-                urlpath = '^/' + appname + urlpath.lstrip('^').rstrip('$') + '$'
-            else:
-                urlpath = '^' + urlpath.lstrip('^').rstrip('$') + '$'
+    def add_url(self, path, handlecls, kwargs=None, appname=''):
+        if type(handlecls) == str:
+            mod, cls = handlecls.rsplit('.', 1)
+            mod = __import__(mod, None, None, [''])
+            obj = getattr(mod, cls)
+        else:
+            obj = handlecls
 
-            log.debug('url: %s %s', urlpath, item[1])
-            if len(item) == 2:
-                tmpurls.append((re.compile(urlpath), obj, {}))
-            else:
-                tmpurls.append((re.compile(urlpath), obj, item[2]))
+        urlpath = path
+        if appname:
+            urlpath = '^/' + appname + urlpath.lstrip('^').rstrip('$') + '$'
+        else:
+            urlpath = '^' + urlpath.lstrip('^').rstrip('$') + '$'
 
-        #self.urls = tmpurls + self.urls
-        self.urls += tmpurls
+        log.debug('url: %s %s', urlpath, handlecls)
+        if not kwargs:
+            kwargs = {}
+        self.urls.append((re.compile(urlpath), obj, kwargs))
+
+
 
     def install(self):
         #if hasattr(self.settings, 'HOME') and self.settings.HOME not in sys.path:
@@ -242,6 +253,7 @@ class WebApplication(object):
             times.append(time.time())
             rpath = req.path
 
+            # 静态文件
             if self._all_static_paths:
                 for k,v in self._all_static_paths.items():
                     if rpath.startswith(k):
@@ -371,6 +383,15 @@ class WebApplication(object):
         resp.headers['Last-Modified'] = gmt
 
         return resp
+
+
+def route(path):
+    '''给handler类用的url装饰器'''
+    def _(h):
+        app.add_url(path, h)
+        return h
+    return _
+
 
 
 

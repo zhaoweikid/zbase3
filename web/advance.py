@@ -45,7 +45,7 @@ class APIHandler (Handler):
     
     def succ(self, data=None, write=True):
         '''成功返回的结构，如果结果不一样，需要重新定义'''
-        obj = {'ret':self._errcode(OK), 'err':''}
+        obj = {'code':self._errcode(OK)}
         if data:
             obj['data'] = data
         else:
@@ -56,13 +56,13 @@ class APIHandler (Handler):
             self.write(s)
         return s
 
-    def fail(self, ret=ERR, err='', data=None, write=True):
+    def fail(self, code=ERR, err='', data=None, write=True):
         '''成功返回的结构，如果结果不一样，需要重新定义'''
-        cd = self._errcode(ret)
+        cd = self._errcode(code)
         cdstr = str(cd)
-        obj = {'ret':cd, 'err':err, 'data':{}}
+        obj = {'code':cd, 'err':err, 'data':{}}
         if not err:
-            obj['err'] = self._errmsg(ret)
+            obj['err'] = self._errmsg(code)
         elif cdstr not in err:
             obj['err'] = err + '({})'.format(cdstr)
         if data:
@@ -118,4 +118,61 @@ class SessionMiddleware:
 
 middleware.SessionMiddleware = SessionMiddleware
 
+class SignMiddleware:
+
+    def get_app(self, viewobj, appid):
+        conf = viewobj.settings.MIDDLEWARE_CONF
+        return conf['apps'].get(appid)
+
+        #with get_connection('usercenter') as conn:
+        #    app = conn.select_one('apps', where={'appid':appid})
+        #    return app
+
+    def before(self, viewobj, *args, **kwargs):
+        '''X-APPID, X-SIGN, X-METHOD'''
+
+        path = viewobj.req.path
+
+        # 不需要检查sign的url
+        if hasattr(viewobj, 'url_private') and path not in viewobj.url_private:
+            return
+        if hasattr(viewobj, 'url_public') and path in viewobj.url_public:
+            return
+        if hasattr(viewobj, 'url_nosign') and path not in viewobj.url_nosign:
+            return
+ 
+        headers = viewobj.req.headers()
+        log.debug('headers:%s', headers)
+        appid = headers.get(config.OPENSDK_SIGN_VAR['appid'], '')
+        sign = headers.get(config.OPENSDK_SIGN_VAR['sign'], '').lower()
+        method = headers.get(config.OPENSDK_SIGN_VAR['method'], 'md5')
+
+        log.debug('appid:%s sign:%s', appid, sign)
+
+        app = self.get_app(viewobj, appid)
+        if not app:
+            viewobj.fail(ERR_SIGN, '签名错误, appid错误')
+            raise HandlerFinish(500, '签名错误, appid错误')
+
+        secret = app['secret']
+        if isinstance(secret, str):
+            secret = secret.encode()
+        s = viewobj.req.postdata() + secret
+        x = hashlib.md5()
+        x.update(s)
+        sign_result = x.hexdigest()
+        log.debug('sign result:%s', sign_result)
+        if sign != sign_result:
+            log.debug('sign error input:%s compute:%s', sign, sign_result)
+            viewobj.fail(ERR_SIGN, '签名错误')
+            raise HandlerFinish()
+
+        viewobj.ses['userid'] = app['userid']
+
+        return
+
+    def after(self, viewobj, *args, **kwargs):
+        return 
+
+middleware.SignMiddleware = SignMiddleware
 

@@ -4,28 +4,34 @@ import time
 import traceback
 import types
 import logging
+#from abc import abstractmethod
 
 log = logging.getLogger()
 
 # 两种缓存模式
 # 1. 所有缓存key共用同一个更新函数
 # 2. 缓存为每个key都设置一个更新函数
-class Cache (object):
-    def __init__(self, func=None, timeout=10):
-        self._cache = {}
-        # 以下为缓存模式1所用，只有模式1才需要
-        self._func = func
-        self._timeout = timeout
 
-    def add(self, key, update_func, timeout):
-        if key:
-            # 以下为模式2
-            item = {'key':key, 'func':update_func, 'timeout':timeout, 'last':0, 'data':None}
-            self._cache[key] = item
-        else:
-            # 以下为模式1
-            self._func = func
-            self._timeout = timeout
+class Cache (object):
+    def __init__(self, func=None, timeout=60):
+        ''' func - 为函数表示缓存更新函数。为字典表示每一个key的更新函数不一样'''
+        self._cache = {}
+        self._timeout = timeout
+        self._func = None
+
+        if func:
+            if type(func) == types.FunctionType:
+                self._func = func
+            elif isinstance(func, dict):
+                for k,v in func.items():
+                    item = {'key':k, 'func':v, 'timeout':timeout, 'last':0, 'data':None}
+                    self._cache[k] = item
+
+
+    def add(self, key, update_func, timeout=60):
+        '''单独为每一个key设置更新函数'''
+        item = {'key':key, 'func':update_func, 'timeout':timeout, 'last':0, 'data':None}
+        self._cache[key] = item
 
     def exist(self, key):
         return key in self._cache
@@ -46,7 +52,7 @@ class Cache (object):
 
         return data
  
-    def __call__(self, key, _refresh=False, *args, **kwargs):
+    def _getdata(self, key, _refresh=False, *args, **kwargs):
         item = self._cache.get(key)
         if not item:
             if not self._func:
@@ -54,11 +60,19 @@ class Cache (object):
             item = {'func':self._func, 'timeout':self._timeout, 'last':0, 'data':None}
             self._cache[key] = item
 
-        data = item['data']
         now = time.time()
         if _refresh or now-item['last'] >= item['timeout']:
-            data = self.update(key, *args, **kwargs)
-        return data
+            return self.update(key, *args, **kwargs)
+            
+        return item['data']
+
+
+    def __call__(self, key, _refresh=False, *args, **kwargs):
+        return self._getdata(key, _refresh, *args, **kwargs)
+
+    def __getitem__(self, key):
+        return self._getdata(key, False)
+
 
 # 这是第2种缓存
 caches = Cache()
@@ -73,7 +87,7 @@ def with_cache(timeout):
              
         def _(*args, **kwargs):
             classname = args[0].__class__.__name__
-            key = 'c_%s_%s_%s' % (fpath, classname, funcname)
+            key = 'cache-%s-%s-%s' % (fpath, classname, funcname)
             global caches 
             if not caches.exist(key):
                 caches.add(key, cache_wrap, timeout)
@@ -102,7 +116,7 @@ def with_cache_func(timeout):
 
 
 
-def test_2():
+def test_key_func():
     #import inspect
     #print('-'*6, inspect.stack()[0].function, '-'*6)
     
@@ -112,59 +126,61 @@ def test_2():
     def func2(key, value, info):
         return 'count-%.3f' % time.time()
     
-    global caches
-    #caches = Cache()
-    caches.add('name', func1, 0.3)
-    caches.add('count', func2, 0.3)
+
+    mycache = Cache()
+    mycache.add('name', func1, 0.3)
+    mycache.add('count', func2, 0.3)
 
     for i in range(0, 3):
-        print(caches('name'))
-        print(caches('count'))
+        print('name:', mycache('name'), mycache['name'])
+        print('count:', mycache('count'), mycache['count'])
         time.sleep(.2)
 
     time.sleep(.1)
-    print("refresh:", caches('name', True))
+    print("refresh:", mycache('name', True))
     time.sleep(.1)
-    print("refresh:", caches('name', True))
+    print("refresh:", mycache('name', True))
     time.sleep(.1)
-    print("refresh:", caches('name', True))
+    print("refresh:", mycache('name', True))
     time.sleep(.1)
 
-    print(caches('name'))
+    print(mycache('name'))
 
-def test_1():
+def test_one_func():
     #import inspect
     #print('-'*6, inspect.stack()[0].function, '-'*6)
     
     def func1(key, value, info):
-        return '%s-%.3f' % (key, time.time())
+        return '{0}-{1:.3f}'.format(key, time.time())
 
     c = Cache(func1, 0.3)
 
     for i in range(0, 3):
-        print(c('haha1'))
-        print(c('haha2'))
+        print('haha1:', c('haha1'), c['haha1'])
+        print('haha2:', c('haha2'))
         time.sleep(.2)
 
     time.sleep(.1)
 
     v1 = c('haha1', True)
-    print("refresh:", v1)
+    print("refresh 1:", v1, c['haha1'])
     time.sleep(.1)
 
     v2 = c('haha1', True)
-    print("refresh:", v2)
+    print("refresh 2:", v2)
     time.sleep(.1)
 
     assert v1 != v2
 
     v3 = c('haha1', True)
-    print("refresh:", v3)
+    print("refresh 3:", v3)
     time.sleep(.1)
 
     assert v3 != v2
 
-    print(c('haha1'))
+    v4 = c['haha1']
+    
+    assert v4 == v3
 
 
 def test_decorator_class():

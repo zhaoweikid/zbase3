@@ -142,9 +142,14 @@ class Field:
 
         # 枚举值校验 只处理STR FLOAT INT
         if self.type <= T_STR and self.choice:
-            if ret not in self.choice:
-                choice = ','.join(map(str, self.choice))
-                log.debug('validator choice error: {0}={1} not in ({2})'.format(self.name, str(val), choice))
+            # 可能choice值形如 [(1, '正常'), (2, '失败')]
+            if isinstance(self.choice[0], (list, tuple)):
+                choices = [x[0] for x in self.choice] 
+            else:
+                choices = self.choice
+            if ret not in choices:
+                choicestr = ','.join(map(str, choices))
+                log.debug('validator choice error: {0}={1} not in ({2})'.format(self.name, str(val), choicestr))
                 raise ValidatorError(self.name)
 
         return ret
@@ -237,13 +242,12 @@ class Validator:
                 log.info(traceback.format_exc())
         return result
 
-
-
     def report(self, result, sep=u'<br/>'):
         return u'输入错误! ' + sep.join([ str(x) for x in result if x])
 
 
 def with_validator(fields):
+    '''验证的配置在fields参数里'''
     def f(func):
         '''validator'''
         def _(self, *args, **kwargs):
@@ -276,6 +280,7 @@ def with_validator(fields):
 
 
 def with_validator_self(names):
+    '''验证的配置为自己(类)的成员'''
     def f(func):
         '''validator'''
         def _(self, *args, **kwargs):
@@ -318,6 +323,7 @@ def with_validator_self(names):
     return f
 
 def with_validator_dict(fields):
+    '''验证参数是一个字典的情况（json对象）'''
     def f(func):
         '''validator'''
         func.__httpfunc = True

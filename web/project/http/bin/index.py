@@ -36,6 +36,12 @@ class Index(core.Handler):
         self.write(str(data))
 
 
+@core.route('/test')
+class Test (core.Handler):
+    def GET(self):
+        self.write('test ok')
+
+
 class MyAPI1(APIHandler):
     def GET(self):
         now = datetime.datetime.now()
