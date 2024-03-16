@@ -83,9 +83,10 @@ class APIHandler (Handler):
 
 class SessionMiddleware:
     def before(self, viewobj, *args, **kwargs):
-        if not viewobj.config.SESSION or not viewobj.config.SESSION.get('enable', True):
+        if not viewobj.conf.SESSION or not viewobj.conf.SESSION.get('enable', True):
             log.info('no session config or not enable, not check session')
             return
+        # handler如果有设置check_session = False，此handler不检查session
         if hasattr(viewobj, 'check_session') and not viewobj.check_session:
             log.info('view not need check session')
             return
@@ -95,8 +96,10 @@ class SessionMiddleware:
 
         path = viewobj.req.path
         # 不需要检查session的url
+        # url_private有设置，那么不在里面的url都是public
         if hasattr(viewobj, 'url_private') and path not in viewobj.url_private:
             return
+        # url_public有设置，那么不在里面的url都是private
         if hasattr(viewobj, 'url_public') and path in viewobj.url_public:
             return
 
@@ -121,7 +124,7 @@ middleware.SessionMiddleware = SessionMiddleware
 class SignMiddleware:
 
     def get_app(self, viewobj, appid):
-        conf = viewobj.settings.MIDDLEWARE_CONF
+        conf = viewobj.conf.MIDDLEWARE_CONF
         return conf['apps'].get(appid)
 
         #with get_connection('usercenter') as conn:
@@ -143,9 +146,9 @@ class SignMiddleware:
  
         headers = viewobj.req.headers()
         log.debug('headers:%s', headers)
-        appid = headers.get(config.OPENSDK_SIGN_VAR['appid'], '')
-        sign = headers.get(config.OPENSDK_SIGN_VAR['sign'], '').lower()
-        method = headers.get(config.OPENSDK_SIGN_VAR['method'], 'md5')
+        appid = headers.get(viewobj.conf.OPENSDK_SIGN_VAR['appid'], '')
+        sign = headers.get(viewobj.conf.OPENSDK_SIGN_VAR['sign'], '').lower()
+        method = headers.get(viewobj.conf.OPENSDK_SIGN_VAR['method'], 'md5')
 
         log.debug('appid:%s sign:%s', appid, sign)
 

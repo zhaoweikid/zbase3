@@ -18,6 +18,8 @@ settings = {
     'format_time': False,
     # 日志级别 all/simple
     'log_level': 'all',
+    # 是否将结果中的bigint转换为字符串
+    'bigint2str': False,
 }
 
 KEY_CP = re.compile('["\'\-\\\*\#,;\/\=\<\>` ]+')
@@ -116,7 +118,8 @@ class DBFunc(object):
         self.value = data
 
     def __str__(self):
-        return 'DBFunc({})'.format(self.value)
+        return self.value
+        #return 'DBFunc({})'.format(self.value)
 
 
 class DBConnection:
@@ -192,10 +195,12 @@ class DBConnection:
             cur.execute(sql)
         res = cur.fetchall()
         cur.close()
-        res = [self.format_timestamp(r, cur) for r in res]
+        #res = [self.format_result(r, cur) for r in res]
         #log.info('desc:', cur.description)
         if not res:
-            return
+            return []
+
+        res = self.format_result(res, cur)
 
         xkeys = [ i[0] for i in cur.description]
 
@@ -224,13 +229,15 @@ class DBConnection:
         cur.execute(sql, param or {})
         res = cur.fetchone()
         cur.close()
-        res = self.format_timestamp(res, cur)
+        res = self.format_result(res, cur)
         if res and isdict:
             xkeys = [ i[0] for i in cur.description]
             one = dict(zip(xkeys, res))
             return one
-        else:
+        elif res:
             return res
+        else:
+            return {}
 
 
     def field2sql(self, v, charset='utf-8'):
@@ -269,8 +276,6 @@ class DBConnection:
             v = v.decode(charset)
 
         if isinstance(v, str):
-            #if v.startswith(('now()','md5(')):
-            #    return v
             return "'%s'" % self.escape(v)
         elif isinstance(v, datetime.datetime) or isinstance(v, datetime.date):
             return "'%s'" % str(v)
@@ -510,14 +515,14 @@ class DBConnection:
 
     def select_sql(self, table, where=None, fields='*', other=None, **kwargs):
         tbs = self.list_find_table(where)
-        log.debug('tables: %s table: %s', tbs, table)
+        #log.debug('tables: %s table: %s', tbs, table)
       
         table = self.format_table(table)
         if tbs:
             fields = self.fields_str(fields, table)
         else:
             fields = self.fields_str(fields)
-        log.debug('fields: %s', fields)
+        #log.debug('fields: %s', fields)
         sql = "select %s from %s" % (fields, table)
         if tbs:
             sql += ", " + ",".join([self.format_table(x) for x in tbs])
@@ -589,25 +594,45 @@ class DBConnection:
     def escape(self, s):
         return s
 
-    def format_timestamp(self, ret, cur):
+    def format_result(self, ret, cur):
         '''将字段以_time结尾的格式化成datetime'''
         global settings
-        if not settings.get('format_time'):
-            return ret
 
         if not ret:
             return ret
-        index = []
-        for d in cur.description:
+
+        format_time = settings.get('format_time')
+        format_bigint = settings.get('bigint2str')
+
+        if not format_time and not format_bigint:
+            return ret
+
+        time_index = []
+        bigint_index = []
+        for i in range(0, len(cur.desription)):
+            d = cur.description[i]
             if d[0].endswith('time'):
-                index.append(cur.description.index(d))
+                time_index.append(i)
+            if d[1] == 8: # pymysql bigint type_code is 8
+                bigint_index.append(i)
+
+        def _format_row(row):
+            newrow = []
+            for i, t in enumerate(row):
+                if time_index and i in time_index and isinstance(t, int):
+                    newrow.append(datetime.datetime.fromtimestamp(t))
+                elif bigint_index and i in bigint_index:
+                    newrow.append(str(t))
+                else:
+                    newrow.append(t)
+            return newrow
 
         res = []
-        for i , t in enumerate(ret):
-            if i in index and isinstance(t, int):
-                res.append(datetime.datetime.fromtimestamp(t))
-            else:
-                res.append(t)
+        if isinstance(ret[0], (list,tuple)): # query返回的多条结果
+            for row in ret:
+                res.append(_format_row(row))
+        else: #get返回的一条结果
+            res = _format_row(ret)
         return res
 
 def with_mysql_reconnect(func):

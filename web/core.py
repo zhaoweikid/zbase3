@@ -283,7 +283,7 @@ class WebApplication(object):
 
                         times.append(time.time())
                         viewobj = view(self, req)
-                        viewobj.config = self.settings
+                        #viewobj.config = self.settings
 
                         midwares = []
                         try:
